@@ -1,0 +1,12 @@
+{
+  "clinica": {
+    "nombre": "Clínica Dental Pimentel",
+    "eslogan": "Tu sonrisa, nuestra prioridad",
+    "direccion": "Puerto Plata, República Dominicana",
+    "telefono": "809-584-7033",
+    "email": "contacto@clinicadentalpimentel.com",
+    "sitio_web": "dra-reyna-pimentel.vercel.app",
+    "color_primario": "#008080",
+    "color_secundario": "#006666"
+  }
+}

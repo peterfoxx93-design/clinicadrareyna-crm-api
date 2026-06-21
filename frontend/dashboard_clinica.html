@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clínica Dental Pimentel — CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: {
+                dental: { 50: '#e6f5f5', 100: '#b3e0e0', 200: '#80cccc', 500: '#008080', 600: '#006666', 700: '#004d4d', 900: '#003333' }
+            } } }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f0f4f8; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .card-hover { cursor: pointer; background: white; border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.25s; display: block; text-decoration: none; color: inherit; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.12); }
+        .btn { transition: all 0.15s; }
+        .btn:active { transform: scale(0.97); }
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .sidebar-link { border-radius: 10px; padding: 10px 14px; transition: all 0.15s; font-size: 14px; font-weight: 500; display: flex; align-items: center; gap: 12px; text-decoration: none; color: #374151; }
+        .sidebar-link:hover { background: #e8f0fe; }
+        .sidebar-link.active { background: #4472C4; color: white; }
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+    </style>
+</head>
+<body class="min-h-screen flex" id="app">
+    <!-- SIDEBAR -->
+    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
+        <div class="p-5 border-b border-gray-100">
+            <div class="flex items-center gap-3">
+                <img src="/static/logo_clinica.jpg" style="height:38px;width:38px;border-radius:50%;object-fit:cover" alt="RP">
+                <div>
+                    <div class="font-bold text-gray-900 text-lg leading-tight">Dental Pimentel</div>
+                    <div class="text-xs text-gray-500">CRM</div>
+                </div>
+            </div>
+        </div>
+        <nav class="flex-1 p-3 space-y-1" id="sidebar-nav">
+            <a href="/" class="sidebar-link"><span>📊</span> Dashboard</a>
+            <a href="/pacientes" class="sidebar-link"><span>👥</span> Pacientes</a>
+            <a href="/citas" class="sidebar-link"><span>📅</span> Citas</a>
+            <a href="/tratamientos" class="sidebar-link"><span>🦷</span> Tratamientos</a>
+            <a href="/recall" class="sidebar-link"><span>🔄</span> Recall</a>
+            <a href="/reportes" class="sidebar-link"><span>📈</span> Reportes</a>
+        </nav>
+        <div class="p-4 border-t border-gray-100">
+            <a href="/logout" class="sidebar-link text-gray-500"><span>🚪</span> Cerrar sesión</a>
+        </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 p-6 overflow-y-auto" id="main-content">
+        <div class="flex items-center justify-center h-64 text-gray-400">Cargando...</div>
+    </main>
+
+    <script>
+    // ============================================================
+    // STATE
+    // ============================================================
+    let STATE = { stats: null, patients: [], currentPatient: null, appointments: [], treatments: [] };
+
+    const STATUS = {
+        nuevo: { label: 'Nuevo', emoji: '🆕', color: '#4472C4', bg: '#eef2fa' },
+        agendado: { label: 'Agendado', emoji: '📅', color: '#f59e0b', bg: '#fef3c7' },
+        diagnosticado: { label: 'Diagnosticado', emoji: '🔍', color: '#8b5cf6', bg: '#f3e8ff' },
+        plan_aceptado: { label: 'Plan Aceptado', emoji: '✅', color: '#3b82f6', bg: '#dbeafe' },
+        en_tratamiento: { label: 'En Tratamiento', emoji: '🦷', color: '#f97316', bg: '#fff7ed' },
+        completado: { label: 'Completado', emoji: '🎉', color: '#10b981', bg: '#d1fae5' },
+        retorno: { label: 'Retorno', emoji: '🔄', color: '#06b6d4', bg: '#cffafe' },
+        perdido: { label: 'Perdido', emoji: '😞', color: '#6b7280', bg: '#f3f4f6' },
+    };
+    const STATUS_KEYS = Object.keys(STATUS);
+
+    function fmtDate(iso) {
+        if (!iso) return '—';
+        return new Date(iso).toLocaleDateString('es-DO', { day: 'numeric', month: 'short' });
+    }
+    function fmtDateTime(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        return d.toLocaleDateString('es-DO', { day: 'numeric', month: 'short' }) + ' ' +
+               d.toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+    }
+    function sBadge(status) {
+        const c = STATUS[status] || STATUS.nuevo;
+        return '<span class="status-badge" style="background:' + c.bg + ';color:' + c.color + '">' + c.emoji + ' ' + c.label + '</span>';
+    }
+    function escHtml(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // ============================================================
+    // API
+    // ============================================================
+    async function api(url, opts) {
+        var res = await fetch(url, {
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            ...(opts || {})
+        });
+        if (res.status === 401) { window.location = '/login'; return null; }
+        if (!res.ok) { var err = await res.json().catch(function() { return {}; }); throw new Error(err.error || res.statusText); }
+        return res.json();
+    }
+
+    // ============================================================
+    // NAVIGATION
+    // ============================================================
+    function setActiveLink(path) {
+        var links = document.querySelectorAll('#sidebar-nav a');
+        for (var i = 0; i < links.length; i++) {
+            var href = links[i].getAttribute('href');
+            if (path === '/' && href === '/') links[i].classList.add('active');
+            else if (path.startsWith(href) && href !== '/') links[i].classList.add('active');
+            else links[i].classList.remove('active');
+        }
+    }
+
+    function navigateTo(url) {
+        history.pushState(null, '', url);
+        setActiveLink(url.split('?')[0]);
+        renderPage();
+    }
+
+    // ============================================================
+    // RENDER
+    // ============================================================
+    async function renderPage() {
+        var main = document.getElementById('main-content');
+        var path = window.location.pathname;
+
+        try {
+            if (path === '/') {
+                var stats = await api('/api/stats');
+                var pData = await api('/api/patients');
+                main.innerHTML = renderDashboard(stats, pData ? pData.patients.slice(0, 5) : []);
+            } else if (path === '/pacientes') {
+                var search = window.location.search;
+                var data = await api('/api/patients' + search);
+                var statusFilter = search.indexOf('status=') >= 0 ? search.replace('?status=', '') : null;
+                main.innerHTML = renderPatients(data ? data.patients : [], statusFilter);
+            } else if (path.indexOf('/paciente/') === 0) {
+                var id = path.split('/')[2];
+                var patient = await api('/api/patients/' + id);
+                main.innerHTML = renderPatientDetail(patient);
+            } else if (path === '/citas') {
+                var data = await api('/api/appointments');
+                main.innerHTML = renderAppointments(data ? data.appointments : []);
+            } else if (path === '/tratamientos') {
+                var data = await api('/api/treatments');
+                main.innerHTML = renderTreatments(data ? data.treatments : []);
+            } else if (path === '/recall') {
+                var data = await api('/api/recall');
+                main.innerHTML = renderRecall(data ? data.recalls : []);
+            } else if (path === '/reportes') {
+                var stats = await api('/api/stats');
+                main.innerHTML = renderReports(stats);
+            } else {
+                main.innerHTML = '<div class="text-center py-16 text-gray-400">Página no encontrada</div>';
+            }
+        } catch (e) {
+            main.innerHTML = '<div class="text-red-500 p-8 text-center text-lg">Error: ' + e.message + '</div>';
+        }
+    }
+
+    // ============================================================
+    // DASHBOARD
+    // ============================================================
+    function renderDashboard(s, recent) {
+        var bs = s.by_status || {};
+        var html = '<div class="fade-in">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">Dashboard</h2>';
+        html += '<span class="text-sm text-gray-500">' + new Date().toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long' }) + '</span>';
+        html += '</div>';
+
+        // Top row — key metrics
+        html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
+        html += statCard('Pacientes', s.total_patients, '👥', 'bg-blue-50 text-blue-600', '/pacientes');
+        html += statCard('Nuevos Hoy', s.today_new, '🆕', 'bg-green-50 text-green-600', '/pacientes');
+        html += statCard('Citas Hoy', s.today_appointments, '📅', 'bg-purple-50 text-purple-600', '/citas');
+        html += statCard('Recall Pendiente', s.recall_due, '🔄', 'bg-cyan-50 text-cyan-600', '/recall');
+        html += '</div>';
+
+        // Pipeline
+        html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
+        html += pipelineCard('🆕', 'Nuevos', bs.nuevo || 0, '#4472C4', '/pacientes?status=nuevo');
+        html += pipelineCard('📅', 'Agendados', bs.agendado || 0, '#f59e0b', '/pacientes?status=agendado');
+        html += pipelineCard('🔍', 'Diagnosticados', bs.diagnosticado || 0, '#8b5cf6', '/pacientes?status=diagnosticado');
+        html += pipelineCard('🦷', 'En Tratamiento', bs.en_tratamiento || 0, '#f97316', '/pacientes?status=en_tratamiento');
+        html += '</div>';
+
+        // Second row — treatments & revenue
+        html += '<div class="grid grid-cols-2 gap-4 mb-6">';
+        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Tratamientos</h3>' +
+            '<div class="space-y-2 text-sm">' +
+            '<p>Planes pendientes: <strong>' + (s.plans_pending || 0) + '</strong></p>' +
+            '<p>Tratamientos activos: <strong>' + (s.active_treatments || 0) + '</strong></p>' +
+            '<p>Ingresos del mes: <strong>$' + (s.month_revenue || 0).toLocaleString() + '</strong></p>' +
+            '</div></div>';
+        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Estado Pacientes</h3>';
+        html += '<div class="space-y-2 text-sm">';
+        html += statusRow('🆕 Nuevos', bs.nuevo || 0, s.total_patients, '#4472C4');
+        html += statusRow('📅 Agendados', bs.agendado || 0, s.total_patients, '#f59e0b');
+        html += statusRow('🦷 En Tratamiento', bs.en_tratamiento || 0, s.total_patients, '#f97316');
+        html += statusRow('🎉 Completados', bs.completado || 0, s.total_patients, '#10b981');
+        html += statusRow('🔄 Retorno', bs.retorno || 0, s.total_patients, '#06b6d4');
+        html += '</div></div></div>';
+
+        // Recent patients
+        html += '<div class="card p-6">';
+        html += '<h3 class="font-semibold text-gray-700 mb-4">Últimos pacientes</h3>';
+        html += '<div class="space-y-3">';
+        if (recent && recent.length > 0) {
+            for (var i = 0; i < recent.length; i++) {
+                var p = recent[i];
+                var initial = p.name ? p.name.charAt(0).toUpperCase() : '?';
+                html += '<a href="/paciente/' + p.id + '" class="flex items-center justify-between p-3 border border-gray-100 rounded-xl hover:bg-gray-50 no-underline" style="text-decoration:none;color:inherit">';
+                html += '<div class="flex items-center gap-3">';
+                var st = STATUS[p.status] || STATUS.nuevo;
+                html += '<div class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold" style="background:' + st.bg + ';color:' + st.color + '">' + initial + '</div>';
+                html += '<div><div class="font-medium text-gray-900 text-sm">' + escHtml(p.name) + '</div>';
+                if (p.phone) html += '<div class="text-xs text-gray-500">📞 ' + escHtml(p.phone) + '</div>';
+                html += '</div></div>';
+                html += '<div class="text-right"><div>' + sBadge(p.status) + '</div><div class="text-xs text-gray-400 mt-1">' + fmtDate(p.created_at) + '</div></div>';
+                html += '</a>';
+            }
+        } else {
+            html += '<p class="text-gray-400 text-center py-4">No hay pacientes aún</p>';
+        }
+        html += '</div></div></div>';
+        return html;
+    }
+
+    function statCard(label, value, emoji, colorClass, link) {
+        return '<a href="' + link + '" class="card-hover flex items-center gap-4 p-4">' +
+            '<div class="w-12 h-12 rounded-xl ' + colorClass + ' flex items-center justify-center text-xl">' + emoji + '</div>' +
+            '<div><div class="text-2xl font-bold text-gray-900">' + (value || 0) + '</div><div class="text-xs text-gray-500">' + label + '</div></div></a>';
+    }
+
+    function pipelineCard(emoji, label, count, color, link) {
+        return '<a href="' + link + '" class="card-hover p-4 text-center">' +
+            '<div class="text-3xl mb-1">' + emoji + '</div>' +
+            '<div class="text-2xl font-bold" style="color:' + color + '">' + count + '</div>' +
+            '<div class="text-xs text-gray-500">' + label + '</div></a>';
+    }
+
+    function statusRow(label, count, total, color) {
+        var pct = Math.round((count / Math.max(total, 1)) * 100);
+        return '<div class="flex items-center justify-between">' +
+            '<span class="text-xs">' + label + '</span>' +
+            '<div class="flex items-center gap-2">' +
+            '<div class="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">' +
+            '<div class="h-full rounded-full" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+            '<span class="text-xs font-medium w-6 text-right">' + count + '</span></div></div>';
+    }
+
+    // ============================================================
+    // PATIENTS LIST (continuará)
+    // ============================================================
+    function renderPatients(patients, filter) {
+        var title = filter ? 'Pacientes — ' + (STATUS[filter] || {}).emoji + ' ' + (STATUS[filter] || {}).label : 'Pacientes';
+        var html = '<div class="fade-in">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">' + title + '</h2>';
+        html += '<button onclick="showNewPatientForm()" class="btn bg-dental-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-dental-600">+ Nuevo Paciente</button>';
+        html += '</div>';
+        html += '<div class="card overflow-hidden"><table class="w-full text-sm">';
+        html += '<thead><tr class="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wider">';
+        html += '<th class="p-4">Nombre</th><th class="p-4">Contacto</th><th class="p-4">Estado</th><th class="p-4">Fuente</th><th class="p-4">Creado</th>';
+        html += '</tr></thead><tbody class="divide-y divide-gray-100">';
+        for (var i = 0; i < patients.length; i++) {
+            var p = patients[i];
+            html += '<tr class="hover:bg-gray-50 cursor-pointer" onclick="navigateTo(\'/paciente/' + p.id + '\')">';
+            html += '<td class="p-4 font-medium text-gray-900">' + escHtml(p.name) + '</td>';
+            html += '<td class="p-4 text-gray-600 text-xs">' + escHtml(p.phone || '') + '</td>';
+            html += '<td class="p-4">' + sBadge(p.status) + '</td>';
+            html += '<td class="p-4 text-gray-500 text-xs">' + p.source + '</td>';
+            html += '<td class="p-4 text-gray-500 text-xs">' + fmtDate(p.created_at) + '</td>';
+            html += '</tr>';
+        }
+        if (patients.length === 0) html += '<tr><td colspan="5" class="p-8 text-center text-gray-400">No hay pacientes</td></tr>';
+        html += '</tbody></table></div></div>';
+        return html;
+    }
+
+    function showNewPatientForm() {
+        var html = '<div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onclick="if(event.target===this)this.remove()">';
+        html += '<div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl fade-in">';
+        html += '<h3 class="text-lg font-bold text-gray-900 mb-4">Nuevo Paciente</h3>';
+        html += '<div class="space-y-3">';
+        html += '<input id="np-name" placeholder="Nombre completo" class="w-full border rounded-xl p-3 text-sm">';
+        html += '<input id="np-phone" placeholder="Teléfono" class="w-full border rounded-xl p-3 text-sm">';
+        html += '<input id="np-email" placeholder="Email (opcional)" class="w-full border rounded-xl p-3 text-sm">';
+        html += '<select id="np-source" class="w-full border rounded-xl p-3 text-sm">';
+        html += '<option value="whatsapp">WhatsApp</option><option value="web">Sitio web</option><option value="referral">Referido</option><option value="walkin">Llegó solo</option>';
+        html += '</select>';
+        html += '<input id="np-ref" placeholder="Referido por (opcional)" class="w-full border rounded-xl p-3 text-sm">';
+        html += '</div>';
+        html += '<div class="flex gap-2 mt-4">';
+        html += '<button onclick="this.closest(\'.fixed\').remove()" class="flex-1 btn border border-gray-300 rounded-xl p-3 text-sm">Cancelar</button>';
+        html += '<button onclick="createPatient()" class="flex-1 btn bg-dental-500 text-white rounded-xl p-3 text-sm font-medium">Guardar</button>';
+        html += '</div></div></div>';
+        var main = document.getElementById('main-content');
+        // Add to body
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        document.body.appendChild(div.firstElementChild);
+    }
+
+    async function createPatient() {
+        var name = document.getElementById('np-name').value.trim();
+        if (!name) { alert('El nombre es obligatorio'); return; }
+        var data = await api('/api/patients', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: name,
+                phone: document.getElementById('np-phone').value.trim(),
+                email: document.getElementById('np-email').value.trim(),
+                source: document.getElementById('np-source').value,
+                referral_source: document.getElementById('np-ref').value.trim(),
+            })
+        });
+        if (data && data.success) {
+            // Close modal and refresh
+            var modal = document.querySelector('.fixed');
+            if (modal) modal.remove();
+            renderPage();
+        }
+    }
+
+    // ============================================================
+    // PATIENT DETAIL
+    // ============================================================
+    function renderPatientDetail(pt) {
+        if (!pt) return '<div class="p-8 text-center text-red-500">Paciente no encontrado</div>';
+        var html = '<div class="fade-in max-w-4xl">';
+        html += '<div class="flex items-center gap-3 mb-6">';
+        html += '<a href="/pacientes" class="text-gray-400 hover:text-gray-600">← Volver</a>';
+        html += '<h2 class="text-2xl font-bold text-gray-900">' + escHtml(pt.name) + '</h2>';
+        html += sBadge(pt.status);
+        html += '</div>';
+
+        // Info cards
+        html += '<div class="grid grid-cols-3 gap-4 mb-6">';
+        html += infoCard('Teléfono', escHtml(pt.phone || '-'));
+        html += infoCard('Email', escHtml(pt.email || '-'));
+        html += infoCard('Fuente', pt.source || '-');
+        html += infoCard('Creado', fmtDate(pt.created_at));
+        html += infoCard('Última visita', pt.last_visit ? fmtDate(pt.last_visit) : '-');
+        html += infoCard('Próximo recall', pt.next_recall ? fmtDate(pt.next_recall) : '-');
+        html += '</div>';
+
+        // Status changer
+        html += renderStatusChanger(pt);
+
+        // Appointments
+        var appts = pt.appointments || [];
+        html += '<div class="card p-4 mb-6">';
+        html += '<div class="flex justify-between items-center mb-3">';
+        html += '<h3 class="font-semibold text-gray-700">Citas</h3>';
+        html += '<button onclick="showNewApptForm(' + pt.id + ')" class="text-xs text-dental-500 font-medium">+ Agendar</button>';
+        html += '</div>';
+        if (appts.length > 0) {
+            for (var i = 0; i < appts.length; i++) {
+                var a = appts[i];
+                html += '<div class="flex justify-between items-center py-2 border-b text-sm">';
+                html += '<div><span class="font-medium">' + fmtDateTime(a.appt_datetime) + '</span> · ' + (a.appt_type || 'consulta') + '</div>';
+                html += '<span class="text-xs ' + (a.status === 'pendiente' ? 'text-yellow-500' : a.status === 'completada' ? 'text-green-500' : 'text-red-500') + '">' + a.status + '</span>';
+                html += '</div>';
+            }
+        } else {
+            html += '<p class="text-gray-400 text-sm text-center py-4">Sin citas</p>';
+        }
+        html += '</div>';
+
+        // Treatment plans
+        var treatments = pt.treatments || [];
+        html += '<div class="card p-4">';
+        html += '<div class="flex justify-between items-center mb-3">';
+        html += '<h3 class="font-semibold text-gray-700">Planes de Tratamiento</h3>';
+        html += '<button onclick="showNewTreatmentForm(' + pt.id + ')" class="text-xs text-dental-500 font-medium">+ Nuevo Plan</button>';
+        html += '</div>';
+        if (treatments.length > 0) {
+            html += '<div class="space-y-2">';
+            for (var i = 0; i < treatments.length; i++) {
+                var t = treatments[i];
+                var tColor = t.status === 'aceptado' ? 'text-green-600' : t.status === 'completado' ? 'text-blue-600' : t.status === 'rechazado' ? 'text-red-500' : 'text-yellow-600';
+                var bal = t.amount - t.amount_paid;
+                html += '<div class="flex justify-between items-center p-3 bg-gray-50 rounded-xl text-sm">';
+                html += '<div><div class="font-medium">' + escHtml(t.title || 'Sin título') + '</div>';
+                html += '<div class="text-xs text-gray-500">$' + (t.amount || 0).toLocaleString() + ' · Pagado: $' + (t.amount_paid || 0).toLocaleString() + ' · Saldo: $' + (bal || 0).toLocaleString() + '</div></div>';
+                html += '<span class="text-xs font-medium ' + tColor + '">' + t.status + '</span>';
+                html += '</div>';
+            }
+            html += '</div>';
+        } else {
+            html += '<p class="text-gray-400 text-sm text-center py-4">Sin planes de tratamiento</p>';
+        }
+        html += '</div>';
+
+        html += '</div>';
+        return html;
+    }
+
+    function infoCard(label, value) {
+        return '<div class="card p-4"><label class="text-xs text-gray-500 uppercase tracking-wider">' + label + '</label><p class="font-medium mt-1">' + value + '</p></div>';
+    }
+
+    function renderStatusChanger(pt) {
+        var opts = '';
+        for (var i = 0; i < STATUS_KEYS.length; i++) {
+            var s = STATUS_KEYS[i];
+            opts += '<option value="' + s + '"' + (pt.status === s ? ' selected' : '') + '>' + STATUS[s].emoji + ' ' + STATUS[s].label + '</option>';
+        }
+        return '<div class="card p-4 mb-6">' +
+            '<label class="text-xs text-gray-500 uppercase tracking-wider mb-2 block">Cambiar Estado</label>' +
+            '<select class="border rounded-lg p-2 w-full text-sm" onchange="api(\'/api/patients/' + pt.id + '\',{method:\'PUT\',body:JSON.stringify({status:this.value})}).then(function(){renderPage()})">' + opts + '</select></div>';
+    }
+
+    // ============================================================
+    // APPOINTMENTS
+    // ============================================================
+    function renderAppointments(appointments) {
+        var html = '<div class="fade-in">';
+        html += '<h2 class="text-2xl font-bold text-gray-900 mb-6">Citas</h2>';
+        html += '<div class="card p-6">';
+        html += '<h3 class="font-semibold text-gray-700 mb-4">Próximas citas</h3>';
+        html += '<div class="space-y-3">';
+        if (appointments.length > 0) {
+            for (var i = 0; i < appointments.length; i++) {
+                var a = appointments[i];
+                var d = new Date(a.appt_datetime);
+                var day = d.getDate();
+                html += '<div class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer" onclick="navigateTo(\'/paciente/' + a.patient_id + '\')">';
+                html += '<div class="flex items-center gap-3">';
+                html += '<div class="w-10 h-10 bg-dental-100 rounded-lg flex items-center justify-center text-dental-600 font-bold">' + day + '</div>';
+                html += '<div><div class="font-medium text-gray-900">' + escHtml(a.patient_name) + '</div>';
+                html += '<div class="text-sm text-gray-500">' + fmtDateTime(a.appt_datetime) + ' · ' + (a.duration_minutes || 30) + 'min · ' + (a.appt_type || 'consulta') + '</div></div></div>';
+                var stColor = a.status === 'confirmada' ? 'text-green-500' : a.status === 'pendiente' ? 'text-yellow-500' : 'text-red-500';
+                html += '<span class="text-xs font-medium ' + stColor + '">' + a.status + '</span></div>';
+            }
+        } else {
+            html += '<p class="text-gray-400 text-center py-8">No hay citas agendadas</p>';
+        }
+        html += '</div></div></div>';
+        return html;
+    }
+
+    function showNewApptForm(patientId) {
+        var html = '<div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onclick="if(event.target===this)this.remove()">';
+        html += '<div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl fade-in">';
+        html += '<h3 class="text-lg font-bold text-gray-900 mb-4">Nueva Cita</h3>';
+        html += '<div class="space-y-3">';
+        html += '<input id="na-datetime" type="datetime-local" class="w-full border rounded-xl p-3 text-sm">';
+        html += '<select id="na-type" class="w-full border rounded-xl p-3 text-sm">';
+        html += '<option value="consulta">Consulta general</option><option value="primera_visita">Primera visita</option><option value="limpieza">Limpieza</option><option value="tratamiento">Tratamiento</option><option value="control">Control</option><option value="urgencia">Urgencia</option>';
+        html += '</select>';
+        html += '<input id="na-duration" type="number" value="30" class="w-full border rounded-xl p-3 text-sm" placeholder="Duración (min)">';
+        html += '<textarea id="na-notes" class="w-full border rounded-xl p-3 text-sm" placeholder="Notas (opcional)" rows="2"></textarea>';
+        html += '</div>';
+        html += '<div class="flex gap-2 mt-4">';
+        html += '<button onclick="this.closest(\'.fixed\').remove()" class="flex-1 btn border border-gray-300 rounded-xl p-3 text-sm">Cancelar</button>';
+        html += '<button onclick="createAppointment(' + patientId + ')" class="flex-1 btn bg-dental-500 text-white rounded-xl p-3 text-sm font-medium">Guardar</button>';
+        html += '</div></div></div>';
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        document.body.appendChild(div.firstElementChild);
+    }
+
+    async function createAppointment(pid) {
+        var dt = document.getElementById('na-datetime').value;
+        var type = document.getElementById('na-type').value;
+        var dur = parseInt(document.getElementById('na-duration').value) || 30;
+        var notes = document.getElementById('na-notes').value.trim();
+        if (!dt) { alert('Selecciona fecha y hora'); return; }
+        var data = await api('/api/appointments', {
+            method: 'POST',
+            body: JSON.stringify({ patient_id: pid, appt_datetime: dt + ':00', appt_type: type, duration_minutes: dur, notes: notes })
+        });
+        if (data && data.success) {
+            var modal = document.querySelector('.fixed');
+            if (modal) modal.remove();
+            renderPage();
+        }
+    }
+
+    // ============================================================
+    // TREATMENTS
+    // ============================================================
+    function renderTreatments(treatments) {
+        var html = '<div class="fade-in">';
+        html += '<h2 class="text-2xl font-bold text-gray-900 mb-6">Tratamientos</h2>';
+        html += '<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">';
+        var pending = treatments.filter(function(t) { return t.status === 'presentado'; }).length;
+        var active = treatments.filter(function(t) { return t.status === 'aceptado' || t.status === 'en_progreso'; }).length;
+        var completed = treatments.filter(function(t) { return t.status === 'completado'; }).length;
+        html += '<div class="card p-4 text-center"><div class="text-2xl font-bold text-yellow-500">' + pending + '</div><div class="text-xs text-gray-500">Pendientes</div></div>';
+        html += '<div class="card p-4 text-center"><div class="text-2xl font-bold text-blue-500">' + active + '</div><div class="text-xs text-gray-500">Activos</div></div>';
+        html += '<div class="card p-4 text-center"><div class="text-2xl font-bold text-green-500">' + completed + '</div><div class="text-xs text-gray-500">Completados</div></div>';
+        html += '</div>';
+
+        html += '<div class="card"><table class="w-full text-sm">';
+        html += '<thead><tr class="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wider">';
+        html += '<th class="p-4">Paciente</th><th class="p-4">Tratamiento</th><th class="p-4">Monto</th><th class="p-4">Pagado</th><th class="p-4">Saldo</th><th class="p-4">Estado</th>';
+        html += '</tr></thead><tbody class="divide-y divide-gray-100">';
+        for (var i = 0; i < treatments.length; i++) {
+            var t = treatments[i];
+            var bal = t.amount - t.amount_paid;
+            html += '<tr class="hover:bg-gray-50 cursor-pointer" onclick="navigateTo(\'/paciente/' + t.patient_id + '\')">';
+            html += '<td class="p-4 font-medium text-gray-900">' + escHtml(t.patient_name) + '</td>';
+            html += '<td class="p-4 text-gray-600">' + escHtml(t.title || '-') + '</td>';
+            html += '<td class="p-4">$' + (t.amount || 0).toLocaleString() + '</td>';
+            html += '<td class="p-4 text-green-600">$' + (t.amount_paid || 0).toLocaleString() + '</td>';
+            html += '<td class="p-4 ' + (bal > 0 ? 'text-red-500' : 'text-gray-500') + '">$' + (bal || 0).toLocaleString() + '</td>';
+            html += '<td class="p-4"><span class="text-xs font-medium">' + t.status + '</span></td>';
+            html += '</tr>';
+        }
+        if (treatments.length === 0) html += '<tr><td colspan="6" class="p-8 text-center text-gray-400">Sin tratamientos</td></tr>';
+        html += '</tbody></table></div></div>';
+        return html;
+    }
+
+    function showNewTreatmentForm(pid) {
+        var html = '<div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onclick="if(event.target===this)this.remove()">';
+        html += '<div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl fade-in">';
+        html += '<h3 class="text-lg font-bold text-gray-900 mb-4">Nuevo Plan de Tratamiento</h3>';
+        html += '<div class="space-y-3">';
+        html += '<input id="nt-title" placeholder="Ej: Limpieza profunda, Corona, etc." class="w-full border rounded-xl p-3 text-sm">';
+        html += '<textarea id="nt-desc" class="w-full border rounded-xl p-3 text-sm" placeholder="Descripción del tratamiento" rows="3"></textarea>';
+        html += '<input id="nt-amount" type="number" step="0.01" placeholder="Monto RD$" class="w-full border rounded-xl p-3 text-sm">';
+        html += '<textarea id="nt-notes" class="w-full border rounded-xl p-3 text-sm" placeholder="Notas adicionales" rows="2"></textarea>';
+        html += '</div>';
+        html += '<div class="flex gap-2 mt-4">';
+        html += '<button onclick="this.closest(\'.fixed\').remove()" class="flex-1 btn border border-gray-300 rounded-xl p-3 text-sm">Cancelar</button>';
+        html += '<button onclick="createTreatment(' + pid + ')" class="flex-1 btn bg-dental-500 text-white rounded-xl p-3 text-sm font-medium">Guardar</button>';
+        html += '</div></div></div>';
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        document.body.appendChild(div.firstElementChild);
+    }
+
+    async function createTreatment(pid) {
+        var title = document.getElementById('nt-title').value.trim();
+        var desc = document.getElementById('nt-desc').value.trim();
+        var amount = parseFloat(document.getElementById('nt-amount').value) || 0;
+        var notes = document.getElementById('nt-notes').value.trim();
+        if (!title) { alert('El nombre del tratamiento es obligatorio'); return; }
+        var data = await api('/api/treatments', {
+            method: 'POST',
+            body: JSON.stringify({ patient_id: pid, title: title, description: desc, amount: amount, notes: notes })
+        });
+        if (data && data.success) {
+            var modal = document.querySelector('.fixed');
+            if (modal) modal.remove();
+            renderPage();
+        }
+    }
+
+    // ============================================================
+    // RECALL
+    // ============================================================
+    function renderRecall(recalls) {
+        var html = '<div class="fade-in">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">Recall — Pacientes por Contactar</h2>';
+        html += '</div>';
+
+        if (recalls.length === 0) {
+            html += '<div class="card p-8 text-center"><p class="text-gray-400">🎉 Todos los pacientes están al día</p></div>';
+        } else {
+            html += '<div class="card overflow-hidden"><table class="w-full text-sm">';
+            html += '<thead><tr class="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wider">';
+            html += '<th class="p-4">Paciente</th><th class="p-4">Teléfono</th><th class="p-4">Última visita</th><th class="p-4">Recall programado</th><th class="p-4">Días vencido</th><th class="p-4"></th>';
+            html += '</tr></thead><tbody class="divide-y divide-gray-100">';
+            for (var i = 0; i < recalls.length; i++) {
+                var r = recalls[i];
+                var overdue = r.days_overdue || 0;
+                var urgency = overdue > 90 ? 'text-red-600 font-bold' : overdue > 30 ? 'text-orange-500' : 'text-yellow-500';
+                html += '<tr class="hover:bg-gray-50">';
+                html += '<td class="p-4 font-medium text-gray-900">' + escHtml(r.name) + '</td>';
+                html += '<td class="p-4 text-gray-600 text-xs">' + escHtml(r.phone || '-') + '</td>';
+                html += '<td class="p-4 text-gray-500 text-xs">' + (r.last_visit ? fmtDate(r.last_visit) : '-') + '</td>';
+                html += '<td class="p-4 text-xs">' + r.recall_date + '</td>';
+                html += '<td class="p-4 text-xs ' + urgency + '">' + overdue + ' días</td>';
+                html += '<td class="p-4"><button class="text-xs bg-dental-500 text-white px-3 py-1 rounded-lg" onclick="navigateTo(\'/paciente/' + r.id + '\')">Contactar</button></td>';
+                html += '</tr>';
+            }
+            html += '</tbody></table></div>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    // ============================================================
+    // REPORTS (simplified)
+    // ============================================================
+    function renderReports(s) {
+        var bs = s.by_status || {};
+        var total = s.total_patients || 0;
+        var html = '<div class="fade-in">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">Reportes</h2>';
+        html += '<button onclick="showReportPreview()" class="btn bg-dental-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-dental-600">Generar Reporte</button>';
+        html += '</div>';
+
+        html += '<div class="grid grid-cols-2 gap-4 mb-6">';
+        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Pacientes por Estado</h3><div class="space-y-2 text-sm">';
+        for (var i = 0; i < STATUS_KEYS.length; i++) {
+            var k = STATUS_KEYS[i];
+            var v = STATUS[k];
+            var count = bs[k] || 0;
+            var pct = Math.round((count / Math.max(total, 1)) * 100);
+            html += '<div class="flex items-center justify-between">' +
+                '<span>' + v.emoji + ' ' + v.label + '</span>' +
+                '<div class="flex items-center gap-2">' +
+                '<div class="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">' +
+                '<div class="h-full rounded-full" style="width:' + pct + '%;background:' + v.color + '"></div></div>' +
+                '<span class="text-sm font-medium w-6 text-right">' + count + '</span></div></div>';
+        }
+        html += '</div></div>';
+
+        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Resumen</h3>' +
+            '<div class="space-y-2 text-sm">' +
+            '<p>Total pacientes: <strong>' + total + '</strong></p>' +
+            '<p>Nuevos hoy: <strong>' + s.today_new + '</strong></p>' +
+            '<p>Activos (tratamiento): <strong>' + (s.active_treatments || 0) + '</strong></p>' +
+            '<p>Recall pendiente: <strong>' + (s.recall_due || 0) + '</strong></p>' +
+            '<p>Ingresos del mes: <strong>$' + (s.month_revenue || 0).toLocaleString() + '</strong></p>' +
+            '</div></div></div></div>';
+        return html;
+    }
+
+    // ============================================================
+    // REPORT GENERATOR
+    // ============================================================
+    var REPORT_PERIODS = [
+        { label: 'Últimos 7 días', value: 7 },
+        { label: 'Últimos 30 días', value: 30 },
+        { label: 'Últimos 90 días', value: 90 },
+        { label: 'Todo', value: 0 },
+    ];
+
+    function showReportPreview() {
+        var main = document.getElementById('main-content');
+        var html = '<div class="fade-in max-w-4xl mx-auto">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">Generar Reporte</h2>';
+        html += '<button onclick="renderPage()" class="text-gray-400 hover:text-gray-600">✕ Cerrar</button>';
+        html += '</div>';
+
+        // Controls
+        html += '<div class="card p-6 mb-6">';
+        html += '<div class="grid grid-cols-3 gap-4">';
+
+        // Period
+        html += '<div><label class="block text-xs text-gray-500 uppercase tracking-wider mb-2">Período</label>';
+        html += '<select id="r-period" class="border rounded-lg p-2 w-full text-sm" onchange="updateReportPreview()">';
+        for (var i = 0; i < REPORT_PERIODS.length; i++) {
+            html += '<option value="' + REPORT_PERIODS[i].value + '">' + REPORT_PERIODS[i].label + '</option>';
+        }
+        html += '</select></div>';
+
+        // Content
+        html += '<div><label class="block text-xs text-gray-500 uppercase tracking-wider mb-2">Contenido</label>';
+        html += '<select id="r-content" class="border rounded-lg p-2 w-full text-sm" onchange="updateReportPreview()">';
+        html += '<option value="completo">Completo (gráficos + pacientes)</option>';
+        html += '<option value="solo_pacientes">Solo pacientes</option>';
+        html += '<option value="solo_graficos">Solo gráficos</option>';
+        html += '</select></div>';
+
+        // Export
+        html += '<div><label class="block text-xs text-gray-500 uppercase tracking-wider mb-2">Exportar</label>';
+        html += '<div class="flex gap-2">';
+        html += '<button onclick="exportReportPDF()" class="flex-1 btn bg-red-50 text-red-600 p-2 rounded-lg text-sm font-medium hover:bg-red-100">📄 PDF</button>';
+        html += '<button onclick="exportReportMD()" class="flex-1 btn bg-blue-50 text-blue-600 p-2 rounded-lg text-sm font-medium hover:bg-blue-100">📝 MD</button>';
+        html += '</div></div>';
+
+        html += '</div></div>';
+
+        // Preview
+        html += '<div id="report-preview" class="bg-white rounded-2xl shadow-lg p-8 border">';
+        html += '<div class="text-center text-gray-400 py-8">Generando reporte...</div>';
+        html += '</div></div>';
+
+        main.innerHTML = html;
+        updateReportPreview();
+    }
+
+    function updateReportPreview() {
+        var days = parseInt(document.getElementById('r-period').value);
+        api('/api/report?days=' + days).then(function(data) {
+            if (!data) return;
+            renderReportPreview(data, document.getElementById('r-content').value);
+        }).catch(function(e) {
+            document.getElementById('report-preview').innerHTML =
+                '<div class="text-red-500 text-center py-8">Error: ' + e.message + '</div>';
+        });
+    }
+
+    function renderReportPreview(data, contentMode) {
+        var cfg = data.config || {};
+        var clinica = cfg.clinica || {};
+        var res = data.resumen || {};
+        var patients = data.patients || [];
+        var daily = data.daily || { labels: [], values: [] };
+
+        var html = '';
+
+        // HEADER
+        html += '<div style="border-bottom:3px solid #008080;padding-bottom:16px;margin-bottom:24px">';
+        html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:4px">';
+        html += '<img src="/static/logo_clinica.jpg" style="height:44px;width:44px;border-radius:50%;object-fit:cover" alt="RP">';
+        html += '<div><div style="font-size:20px;font-weight:700;color:#1f2937">' + escHtml(clinica.nombre || 'Clínica Dental') + '</div>';
+        html += '<div style="font-size:13px;color:#6b7280">' + escHtml(clinica.eslogan || '') + '</div></div></div>';
+        html += '<div style="display:flex;justify-content:space-between;font-size:13px;color:#9ca3af">';
+        html += '<span>📅 Generado: ' + new Date().toLocaleDateString('es-DO', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + '</span>';
+        html += '<span>📊 Período: ' + getPeriodLabel(parseInt(document.getElementById('r-period').value)) + '</span>';
+        html += '</div></div>';
+
+        if (contentMode === 'solo_pacientes') {
+            html += renderPatientTable(patients);
+            html += renderFooter(clinica);
+            document.getElementById('report-preview').innerHTML = '<div class="text-xs text-gray-400 mb-4" style="text-align:center">Vista previa</div>' + html;
+            window._reportHTML = html;
+            return;
+        }
+
+        // SUMMARY CARDS
+        var total = res.total || 0;
+        var bs = res.por_estado || {};
+        html += '<div style="margin-bottom:24px">';
+        html += '<h3 style="font-size:16px;font-weight:600;color:#1f2937;margin-bottom:12px">Resumen Ejecutivo</h3>';
+        html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">';
+        html += summaryCard('Total Pacientes', total, '#008080', '👥');
+        html += summaryCard('Agendados', bs.agendado || 0, '#f59e0b', '📅');
+        html += summaryCard('En Tratamiento', bs.en_tratamiento || 0, '#f97316', '🦷');
+        html += summaryCard('Completados', bs.completado || 0, '#10b981', '🎉');
+        html += '</div></div>';
+
+        // PIPELINE
+        if (contentMode !== 'solo_graficos' && contentMode !== 'solo_pacientes') {
+            html += '<div style="margin-bottom:24px">';
+            html += '<h3 style="font-size:16px;font-weight:600;color:#1f2937;margin-bottom:12px">Pipeline de Pacientes</h3>';
+            var pctotal = total || 1;
+            for (var i = 0; i < STATUS_KEYS.length; i++) {
+                var k = STATUS_KEYS[i];
+                var v = STATUS[k];
+                var count = bs[k] || 0;
+                var pct = Math.round((count / pctotal) * 100);
+                html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">';
+                html += '<span style="width:120px;font-size:13px">' + v.emoji + ' ' + v.label + '</span>';
+                html += '<div style="flex:1;height:10px;background:#f3f4f6;border-radius:5px;overflow:hidden">';
+                html += '<div style="height:100%;width:' + pct + '%;background:' + v.color + ';border-radius:5px"></div></div>';
+                html += '<span style="width:60px;text-align:right;font-size:13px;font-weight:600;color:' + v.color + '">' + count + ' (' + pct + '%)</span>';
+                html += '</div>';
+            }
+            html += '</div>';
+        }
+
+        // DAILY CHART
+        if (contentMode !== 'solo_pacientes' && daily.labels.length > 0) {
+            html += '<div style="margin-bottom:24px">';
+            html += '<h3 style="font-size:16px;font-weight:600;color:#1f2937;margin-bottom:12px">Pacientes Nuevos por Día</h3>';
+            html += '<div style="display:flex;align-items:end;gap:6px;height:100px;padding:8px 0">';
+            var maxVal = 1;
+            for (var i = 0; i < daily.values.length; i++) { if (daily.values[i] > maxVal) maxVal = daily.values[i]; }
+            for (var i = 0; i < daily.labels.length; i++) {
+                var h = Math.round((daily.values[i] / maxVal) * 80);
+                html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center">';
+                html += '<div style="font-size:10px;color:#6b7280;margin-bottom:2px">' + daily.values[i] + '</div>';
+                html += '<div style="width:100%;height:' + h + 'px;background:#008080;border-radius:4px 4px 0 0;min-height:4px"></div>';
+                html += '<div style="font-size:9px;color:#9ca3af;margin-top:4px">' + daily.labels[i] + '</div></div>';
+            }
+            html += '</div></div>';
+        }
+
+        // TABLE
+        if (patients.length > 0 && contentMode !== 'solo_graficos') {
+            html += renderPatientTable(patients);
+        }
+
+        // FOOTER
+        html += renderFooter(clinica);
+
+        document.getElementById('report-preview').innerHTML = '<div class="text-xs text-gray-400 mb-4" style="text-align:center">Vista previa</div>' + html;
+        window._reportHTML = html;
+        window._reportData = data;
+    }
+
+    function summaryCard(label, value, color, icon) {
+        return '<div style="text-align:center;padding:16px;background:' + color + '10;border-radius:14px">' +
+            '<div style="font-size:16px;margin-bottom:4px">' + icon + '</div>' +
+            '<div style="font-size:26px;font-weight:800;color:' + color + '">' + value + '</div>' +
+            '<div style="font-size:12px;color:#6b7280;margin-top:4px;font-weight:500">' + label + '</div></div>';
+    }
+
+    function renderPatientTable(patients) {
+        var html = '<div style="margin-bottom:24px">';
+        html += '<h3 style="font-size:16px;font-weight:600;color:#1f2937;margin-bottom:12px">Pacientes</h3>';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+        html += '<thead><tr style="background:#f9fafb">';
+        html += '<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #e5e7eb;color:#6b7280;font-size:11px;text-transform:uppercase">Nombre</th>';
+        html += '<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #e5e7eb;color:#6b7280;font-size:11px;text-transform:uppercase">Teléfono</th>';
+        html += '<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #e5e7eb;color:#6b7280;font-size:11px;text-transform:uppercase">Estado</th>';
+        html += '<th style="text-align:left;padding:8px 12px;border-bottom:2px solid #e5e7eb;color:#6b7280;font-size:11px;text-transform:uppercase">Creado</th></tr></thead><tbody>';
+        for (var i = 0; i < patients.length; i++) {
+            var p = patients[i];
+            var c = STATUS[p.estado] || {};
+            html += '<tr><td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;font-weight:500">' + escHtml(p.nombre) + '</td>';
+            html += '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;color:#6b7280">' + escHtml(p.telefono || '-') + '</td>';
+            html += '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6"><span style="color:' + (c.color || '#6b7280') + ';font-weight:600">' + (c.emoji || '') + ' ' + (c.label || p.estado) + '</span></td>';
+            html += '<td style="padding:8px 12px;border-bottom:1px solid #f3f4f6;color:#9ca3af;font-size:12px">' + (p.creado || '-') + '</td></tr>';
+        }
+        html += '</tbody></table></div>';
+        return html;
+    }
+
+    function renderFooter(clinica) {
+        return '<div style="border-top:2px solid #00808030;padding-top:16px;margin-top:24px;text-align:center;font-size:11px;color:#9ca3af">' +
+            '<div style="font-weight:600;color:#008080;font-size:13px">' + escHtml(clinica.nombre || 'Clínica Dental') + '</div>' +
+            '<div>' + escHtml(clinica.direccion || '') + '</div>' +
+            '<div style="margin-top:4px">📞 ' + escHtml(clinica.telefono || '') + ' · ✉️ ' + escHtml(clinica.email || '') + '</div>' +
+            '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #f3f4f6;color:#d1d5db">Generado por CRM Clínica Dental Pimentel</div></div>';
+    }
+
+    function getPeriodLabel(days) {
+        for (var i = 0; i < REPORT_PERIODS.length; i++) {
+            if (REPORT_PERIODS[i].value === days) return REPORT_PERIODS[i].label;
+        }
+        return days + ' días';
+    }
+
+    function exportReportPDF() {
+        var html = window._reportHTML || '';
+        if (!html) { alert('Primero genera el reporte'); return; }
+        html = html.replace(/src="\/static\/logo_clinica\.jpg"/g, 'src="' + window.location.origin + '/static/logo_clinica.jpg"');
+        var win = window.open('', '_blank');
+        win.document.write('<html><head><title>Reporte Clínica Dental</title>');
+        win.document.write('<style>body{font-family:Inter,sans-serif;padding:40px;color:#1f2937;max-width:800px;margin:0 auto}table{width:100%;border-collapse:collapse}th{background:#f9fafb;text-align:left;padding:10px 14px;border-bottom:2px solid #e5e7eb;color:#6b7280;font-size:11px;text-transform:uppercase}td{padding:10px 14px;border-bottom:1px solid #f3f4f6;font-size:13px}@media print{body{padding:20px}@page{margin:1.5cm}}</style></head><body>');
+        win.document.write(html);
+        win.document.write('</body></html>');
+        win.document.close();
+        win.focus();
+        setTimeout(function() { win.print(); }, 800);
+    }
+
+    function exportReportMD() {
+        var data = window._reportData;
+        if (!data) { alert('Primero genera el reporte'); return; }
+        var cfg = data.config?.clinica || {};
+        var res = data.resumen || {};
+        var lines = ['# ' + (cfg.nombre || 'Clínica Dental'), '**' + (cfg.eslogan || '') + '**', '',
+            '**Reporte:** ' + new Date().toLocaleDateString('es-DO', { day:'numeric', month:'long', year:'numeric' }),
+            '**Período:** ' + getPeriodLabel(parseInt(document.getElementById('r-period').value)), '',
+            '## Resumen', '', '| Métrica | Valor |', '|---|---|', '| Total pacientes | ' + (res.total || 0) + ' |'];
+        var bs = res.por_estado || {};
+        for (var k in bs) { lines.push('| ' + (STATUS[k]?.emoji || '') + ' ' + (STATUS[k]?.label || k) + ' | ' + bs[k] + ' |'); }
+        lines.push('| Citas | ' + (res.citas || 0) + ' |');
+        lines.push('| Ingresos | $' + (res.ingresos || 0).toLocaleString() + ' |');
+        lines.push('', '---', '*Generado por CRM Clínica Dental Pimentel*');
+        var blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'reporte_clinica.md';
+        a.click(); URL.revokeObjectURL(url);
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    (function() {
+        var links = document.querySelectorAll('#sidebar-nav a');
+        for (var i = 0; i < links.length; i++) {
+            links[i].addEventListener('click', function(e) {
+                e.preventDefault();
+                navigateTo(this.getAttribute('href'));
+            });
+        }
+        window.addEventListener('popstate', function() { renderPage(); });
+        setActiveLink(window.location.pathname);
+        renderPage();
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clínica Dental Pimentel — CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dental: { 50: '#eef2fa', 100: '#dce5f5', 500: '#4472C4', 600: '#3a62b0', 700: '#2c5aa0', 900: '#1a3a6e' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        body { background: linear-gradient(135deg, #eef2fa 0%, #f0f4f8 100%); }
+        .btn { transition: all 0.15s; }
+        .btn:active { transform: scale(0.97); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+            <div class="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg" id="login-logo">
+                <img src="/static/logo_clinica.jpg" style="height:80px;width:80px;border-radius:50%;object-fit:cover" alt="RP">
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900">Clínica Dental Pimentel</h1>
+            <p class="text-gray-500 mt-1">Sistema de Gestión de Pacientes</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <form method="POST" action="/login">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Usuario</label>
+                    <input type="text" name="username" value="admin"
+                           class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-dental-500 focus:border-transparent outline-none"
+                           required>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+                    <input type="password" name="password" value="reyna2026"
+                           class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-dental-500 focus:border-transparent outline-none"
+                           required>
+                </div>
+                <button type="submit"
+                        class="btn w-full bg-dental-500 text-white py-3 rounded-xl font-semibold hover:bg-dental-600 shadow-md">
+                    Entrar
+                </button>
+            </form>
+            <p class="text-center text-xs text-gray-400 mt-4">
+                Powered by Verano Media RD
+            </p>
+        </div>
+    </div>
+</body>
+</html>
