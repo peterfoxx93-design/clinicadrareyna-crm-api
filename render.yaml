@@ -1,7 +1,7 @@
 services:
   - type: web
-    name: clinica-crm-api
-    runtime: python
+    name: clinicadrareyna-crm-api
+    env: python
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
