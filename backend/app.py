@@ -14,7 +14,7 @@ from sqlalchemy import func
 import resend
 
 sys.path.insert(0, os.path.dirname(__file__))
-from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, Service, init_db
+from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, Service, Doctor, BlockedSchedule, init_db
 
 # Resend
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_8WZh1FS5_NNxkw7opeabxFV7QixMu97cH')
@@ -113,6 +113,7 @@ def api_public_book():
     phone = (data.get('phone') or '').strip()
     email = (data.get('email') or '').strip()
     service_name = (data.get('service') or 'consulta').strip()
+    doctor_id = data.get('doctor_id')
     appt_datetime_str = data.get('datetime', '').strip()
 
     if not name:
@@ -142,6 +143,7 @@ def api_public_book():
         appt_datetime=appt_datetime,
         duration_minutes=30,
         appt_type=service_name,
+        doctor_id=doctor_id if doctor_id else None,
         notes=f'Reservado desde la web',
         status='pendiente',
     )
@@ -171,6 +173,83 @@ def api_public_book():
         print(f"[Resend] notify error: {e}")
 
     return jsonify({'success': True, 'appointment_id': appt.id}), 201
+
+@app.route('/api/public/doctors', methods=['GET'])
+def api_public_doctors():
+    """Lista doctores activos (público)."""
+    doctors = Doctor.query.filter_by(active=True).order_by(Doctor.sort_order).all()
+    return jsonify({'doctors': [d.to_dict() for d in doctors]})
+
+@app.route('/api/public/availability', methods=['GET'])
+def api_public_availability():
+    """Horarios disponibles para un doctor en una fecha específica."""
+    doctor_id = request.args.get('doctor_id', type=int)
+    date_str = request.args.get('date', '').strip()
+
+    if not doctor_id or not date_str:
+        return jsonify({'error': 'doctor_id and date required'}), 400
+
+    try:
+        target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except:
+        return jsonify({'error': 'Invalid date format (use YYYY-MM-DD)'}), 400
+
+    # Check if date is in the past
+    if target_date < date.today():
+        return jsonify({'slots': []})
+
+    # Check if it's weekend (Sunday=6)
+    if target_date.weekday() == 6:
+        return jsonify({'slots': []})
+
+    # Generate all possible slots (8:00 - 17:00, 30min intervals)
+    all_slots = []
+    for h in range(8, 17):
+        for m in [0, 30]:
+            all_slots.append(f'{h:02d}:{m:02d}')
+
+    # Saturday: only until 13:00
+    if target_date.weekday() == 5:
+        all_slots = [s for s in all_slots if int(s.split(':')[0]) < 13]
+
+    # Remove slots that are blocked
+    blocked = BlockedSchedule.query.filter(
+        BlockedSchedule.block_date == target_date,
+        db.or_(BlockedSchedule.doctor_id == doctor_id, BlockedSchedule.doctor_id.is_(None))
+    ).all()
+
+    blocked_slots = set()
+    for b in blocked:
+        if not b.start_time and not b.end_time:
+            # Whole day blocked
+            return jsonify({'slots': []})
+        # Parse blocked range
+        b_start = int(b.start_time.split(':')[0]) * 60 + int(b.start_time.split(':')[1])
+        b_end = int(b.end_time.split(':')[0]) * 60 + int(b.end_time.split(':')[1]) if b.end_time else b_start + 30
+        for s in all_slots:
+            s_min = int(s.split(':')[0]) * 60 + int(s.split(':')[1])
+            if b_start <= s_min < b_end:
+                blocked_slots.add(s)
+
+    # Remove slots that already have appointments
+    booked = Appointment.query.filter(
+        Appointment.doctor_id == doctor_id,
+        db.func.date(Appointment.appt_datetime) == target_date,
+        Appointment.status.in_(['pendiente', 'confirmada'])
+    ).all()
+
+    for appt in booked:
+        appt_start = appt.appt_datetime.hour * 60 + appt.appt_datetime.minute
+        appt_end = appt_start + (appt.duration_minutes or 30)
+        for s in all_slots:
+            s_min = int(s.split(':')[0]) * 60 + int(s.split(':')[1])
+            if appt_start <= s_min < appt_end:
+                blocked_slots.add(s)
+
+    # Available slots
+    available = [s for s in all_slots if s not in blocked_slots]
+
+    return jsonify({'slots': available, 'date': date_str, 'doctor_id': doctor_id})
 
 # ============================================================
 # CONFIG
@@ -258,6 +337,16 @@ def servicios():
 @app.route('/reportes')
 @login_required
 def reportes():
+    return render_template('dashboard_clinica.html')
+
+@app.route('/doctores')
+@login_required
+def doctores():
+    return render_template('dashboard_clinica.html')
+
+@app.route('/bloqueo')
+@login_required
+def bloqueo():
     return render_template('dashboard_clinica.html')
 
 @app.route('/finanzas')
@@ -867,6 +956,99 @@ def api_finance_pending():
         } for p in plans],
         'total': len(plans)
     })
+
+# ============================================================
+# API — Doctors CRUD (admin)
+# ============================================================
+@app.route('/api/doctors', methods=['GET'])
+@login_required
+def api_get_doctors():
+    doctors = Doctor.query.order_by(Doctor.sort_order).all()
+    return jsonify({'doctors': [d.to_dict() for d in doctors]})
+
+@app.route('/api/doctors', methods=['POST'])
+@login_required
+def api_create_doctor():
+    data = request.get_json()
+    if not data or not data.get('name'):
+        return jsonify({'error': 'name is required'}), 400
+    doctor = Doctor(
+        name=data['name'].strip(),
+        specialty=data.get('specialty', '').strip(),
+        bio=data.get('bio', '').strip(),
+        photo_url=data.get('photo_url', '').strip(),
+        sort_order=data.get('sort_order', 0),
+    )
+    db.session.add(doctor)
+    db.session.commit()
+    return jsonify({'doctor': doctor.to_dict(), 'success': True}), 201
+
+@app.route('/api/doctors/<int:did>', methods=['PUT'])
+@login_required
+def api_update_doctor(did):
+    doctor = db.session.get(Doctor, did)
+    if not doctor:
+        return jsonify({'error': 'not found'}), 404
+    data = request.get_json()
+    for field in ['name', 'specialty', 'bio', 'photo_url', 'active', 'sort_order']:
+        if field in data:
+            setattr(doctor, field, data[field])
+    db.session.commit()
+    return jsonify({'doctor': doctor.to_dict(), 'success': True})
+
+@app.route('/api/doctors/<int:did>', methods=['DELETE'])
+@login_required
+def api_delete_doctor(did):
+    doctor = db.session.get(Doctor, did)
+    if not doctor:
+        return jsonify({'error': 'not found'}), 404
+    db.session.delete(doctor)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# ============================================================
+# API — Blocked Schedules (admin)
+# ============================================================
+@app.route('/api/blocked-schedules', methods=['GET'])
+@login_required
+def api_get_blocked():
+    doctor_id = request.args.get('doctor_id', type=int)
+    query = BlockedSchedule.query
+    if doctor_id:
+        query = query.filter_by(doctor_id=doctor_id)
+    blocked = query.order_by(BlockedSchedule.block_date.desc()).all()
+    return jsonify({'blocked': [b.to_dict() for b in blocked]})
+
+@app.route('/api/blocked-schedules', methods=['POST'])
+@login_required
+def api_create_blocked():
+    data = request.get_json()
+    if not data or not data.get('block_date'):
+        return jsonify({'error': 'block_date is required'}), 400
+    try:
+        block_date = datetime.strptime(data['block_date'], '%Y-%m-%d').date()
+    except:
+        return jsonify({'error': 'Invalid date format'}), 400
+    blocked = BlockedSchedule(
+        doctor_id=data.get('doctor_id'),
+        block_date=block_date,
+        start_time=data.get('start_time', ''),
+        end_time=data.get('end_time', ''),
+        reason=data.get('reason', ''),
+    )
+    db.session.add(blocked)
+    db.session.commit()
+    return jsonify({'blocked': blocked.to_dict(), 'success': True}), 201
+
+@app.route('/api/blocked-schedules/<int:bid>', methods=['DELETE'])
+@login_required
+def api_delete_blocked(bid):
+    blocked = db.session.get(BlockedSchedule, bid)
+    if not blocked:
+        return jsonify({'error': 'not found'}), 404
+    db.session.delete(blocked)
+    db.session.commit()
+    return jsonify({'success': True})
 
 # ============================================================
 # Static files

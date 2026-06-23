@@ -22,6 +22,32 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
 
+class Doctor(db.Model):
+    """Doctores de la clínica"""
+    __tablename__ = 'doctors'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    specialty = db.Column(db.String(200), default='')  # Odontóloga, Ortodoncista, etc.
+    bio = db.Column(db.Text, default='')  # Breve descripción
+    photo_url = db.Column(db.String(500), default='')
+    active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    appointments = db.relationship('Appointment', backref='doctor', lazy='dynamic')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'specialty': self.specialty,
+            'bio': self.bio,
+            'photo_url': self.photo_url,
+            'active': self.active,
+            'sort_order': self.sort_order,
+        }
+
+
 class Patient(db.Model):
     """Paciente de la clínica dental"""
     __tablename__ = 'patients'
@@ -29,15 +55,14 @@ class Patient(db.Model):
     name = db.Column(db.String(200), nullable=False)
     phone = db.Column(db.String(50), default='')
     email = db.Column(db.String(200), default='')
-    birthdate = db.Column(db.String(20), default='')  # DD/MM/AAAA
-    source = db.Column(db.String(50), default='whatsapp')  # whatsapp, web, referral, walkin
+    birthdate = db.Column(db.String(20), default='')
+    source = db.Column(db.String(50), default='whatsapp')
     status = db.Column(db.String(20), default='nuevo')
-    # Pipeline: nuevo, agendado, diagnosticado, plan_aceptado, en_tratamiento, completado, retorno, perdido
     notes = db.Column(db.Text, default='')
-    referral_source = db.Column(db.String(100), default='')  # Quién lo recomendó
+    referral_source = db.Column(db.String(100), default='')
     total_spent = db.Column(db.Float, default=0.0)
     last_visit = db.Column(db.DateTime, nullable=True)
-    next_recall = db.Column(db.DateTime, nullable=True)  # Próximo recordatorio de chequeo
+    next_recall = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -74,13 +99,12 @@ class Appointment(db.Model):
     __tablename__ = 'appointments'
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'), nullable=True)
     appt_datetime = db.Column(db.DateTime, nullable=False)
     duration_minutes = db.Column(db.Integer, default=30)
     appt_type = db.Column(db.String(50), default='consulta')
-    # Tipos: primera_visita, consulta, limpieza, tratamiento, control, urgencia
     notes = db.Column(db.Text, default='')
     status = db.Column(db.String(20), default='pendiente')
-    # pendiente, confirmada, completada, cancelada, no_show
     reminder_sent = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -89,6 +113,8 @@ class Appointment(db.Model):
             'id': self.id,
             'patient_id': self.patient_id,
             'patient_name': self.patient.name if self.patient else '',
+            'doctor_id': self.doctor_id,
+            'doctor_name': self.doctor.name if self.doctor else '',
             'appt_datetime': self.appt_datetime.isoformat() if self.appt_datetime else None,
             'duration_minutes': self.duration_minutes,
             'appt_type': self.appt_type,
@@ -99,17 +125,38 @@ class Appointment(db.Model):
         }
 
 
+class BlockedSchedule(db.Model):
+    """Bloqueo de horarios (días que el doctor no atiende)"""
+    __tablename__ = 'blocked_schedules'
+    id = db.Column(db.Integer, primary_key=True)
+    doctor_id = db.Column(db.Integer, db.ForeignKey('doctors.id'), nullable=True)  # null = toda la clínica
+    block_date = db.Column(db.Date, nullable=False)
+    start_time = db.Column(db.String(5), default='')  # HH:MM, vacío = todo el día
+    end_time = db.Column(db.String(5), default='')
+    reason = db.Column(db.String(200), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'doctor_id': self.doctor_id,
+            'block_date': self.block_date.isoformat() if self.block_date else None,
+            'start_time': self.start_time,
+            'end_time': self.end_time,
+            'reason': self.reason,
+        }
+
+
 class TreatmentPlan(db.Model):
     """Planes de tratamiento"""
     __tablename__ = 'treatment_plans'
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
-    title = db.Column(db.String(200), default='')  # ej: "Limpieza profunda", "Corona dental"
+    title = db.Column(db.String(200), default='')
     description = db.Column(db.Text, default='')
     amount = db.Column(db.Float, default=0.0)
     amount_paid = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(20), default='presentado')
-    # presentado, aceptado, en_progreso, completado, rechazado, cancelado
     notes = db.Column(db.Text, default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
@@ -160,7 +207,7 @@ class PatientInteraction(db.Model):
     __tablename__ = 'patient_interactions'
     id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
-    direction = db.Column(db.String(10), default='in')  # in, out
+    direction = db.Column(db.String(10), default='in')
     message = db.Column(db.Text, default='')
     channel = db.Column(db.String(50), default='whatsapp')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -179,10 +226,21 @@ class PatientInteraction(db.Model):
 def init_db(app):
     db.init_app(app)
     with app.app_context():
+        # Create all tables (including new ones)
         db.create_all()
         # Create default admin if not exists
         if not User.query.filter_by(username='admin').first():
             admin = User(username='admin', is_admin=True)
             admin.set_password('reyna2026')
             db.session.add(admin)
+            db.session.commit()
+        # Seed default doctors if none exist
+        if Doctor.query.count() == 0:
+            defaults = [
+                ('Dra. Reyna Pimentel', 'Odontóloga General', 'Especialista en diseño de sonrisa y rehabilitación estética con más de 12 años de experiencia.', 0),
+                ('Dr. Carlos Méndez', 'Ortodoncista', 'Especialista en ortodoncia y alineadores invisibles. Tratamiento de maloclusiones.', 1),
+                ('Dra. María Fernández', 'Periodoncista', 'Especialista en encías e implantes dentales. Cirugía periodontal y regeneración ósea.', 2),
+            ]
+            for name, specialty, bio, order in defaults:
+                db.session.add(Doctor(name=name, specialty=specialty, bio=bio, sort_order=order))
             db.session.commit()

@@ -50,6 +50,8 @@
             <a href="/tratamientos" class="sidebar-link"><span>🦷</span> Tratamientos</a>
             <a href="/recall" class="sidebar-link"><span>🔄</span> Recall</a>
             <a href="/servicios" class="sidebar-link"><span>🛠️</span> Servicios</a>
+            <a href="/doctores" class="sidebar-link"><span>🩺</span> Doctores</a>
+            <a href="/bloqueo" class="sidebar-link"><span>🔒</span> Bloqueo</a>
             <a href="/reportes" class="sidebar-link"><span>📈</span> Reportes</a>
             <a href="/finanzas" class="sidebar-link"><span>💰</span> Finanzas</a>
         </nav>
@@ -172,6 +174,13 @@
             } else if (path === '/finanzas') {
                 main.innerHTML = '<div class="fade-in" id="finanzas-root"><div class="text-center py-16 text-gray-400">Cargando...</div></div>';
                 renderFinanzas();
+            } else if (path === '/doctores') {
+                var data = await api('/api/doctors');
+                main.innerHTML = renderDoctors(data ? data.doctors : []);
+            } else if (path === '/bloqueo') {
+                var data = await api('/api/blocked-schedules');
+                var docs = await api('/api/doctors');
+                main.innerHTML = renderBloqueo(data ? data.blocked : [], docs ? docs.doctors : []);
             } else {
                 main.innerHTML = '<div class="text-center py-16 text-gray-400">Página no encontrada</div>';
             }
@@ -1131,6 +1140,150 @@
             '<p class="text-xl font-bold ' + colorClass + '">' + value + '</p>' +
             '</div>';
     }
+
+    // ============================================================
+    // DOCTORES
+    // ============================================================
+    function renderDoctors(doctors) {
+        var html = '<div class="fade-in">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">🩺 Doctores</h2>';
+        html += '<button onclick="showDoctorModal()" class="px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-full hover:bg-teal-700">+ Nuevo doctor</button>';
+        html += '</div>';
+
+        if (doctors.length === 0) {
+            html += '<div class="text-center py-16 text-gray-400">No hay doctores registrados</div>';
+        } else {
+            html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+            for (var i = 0; i < doctors.length; i++) {
+                var d = doctors[i];
+                var initials = d.name.split(" ").map(function(w){return w[0]}).join("").slice(0,2).toUpperCase();
+                html += '<div class="card p-5">';
+                html += '<div class="flex items-start gap-4">';
+                html += '<div class="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-lg shrink-0">' + initials + '</div>';
+                html += '<div class="flex-1">';
+                html += '<h3 class="font-bold text-gray-900">' + escHtml(d.name) + '</h3>';
+                html += '<p class="text-sm text-gray-500">' + escHtml(d.specialty) + '</p>';
+                if (d.bio) html += '<p class="text-xs text-gray-400 mt-1">' + escHtml(d.bio) + '</p>';
+                html += '<div class="flex items-center gap-2 mt-2">';
+                html += '<span class="text-xs px-2 py-0.5 rounded-full ' + (d.active ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500') + '">' + (d.active ? 'Activo' : 'Inactivo') + '</span>';
+                html += '<button onclick="deleteDoctor(' + d.id + ')" class="text-xs text-red-500 hover:text-red-700 ml-auto">🗑️</button>';
+                html += '</div></div></div></div>';
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+
+        // Modal
+        html += '<div id="doctor-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50" style="display:none">';
+        html += '<div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">';
+        html += '<h3 class="text-lg font-bold mb-4">Nuevo Doctor</h3>';
+        html += '<div class="space-y-3">';
+        html += '<input id="doc-name" class="w-full border rounded-xl px-4 py-2 text-sm" placeholder="Nombre completo">';
+        html += '<input id="doc-specialty" class="w-full border rounded-xl px-4 py-2 text-sm" placeholder="Especialidad">';
+        html += '<textarea id="doc-bio" class="w-full border rounded-xl px-4 py-2 text-sm" placeholder="Biografía (opcional)" rows="2"></textarea>';
+        html += '</div>';
+        html += '<div class="flex gap-3 mt-4">';
+        html += '<button onclick="closeDoctorModal()" class="flex-1 py-2 border rounded-full text-sm">Cancelar</button>';
+        html += '<button onclick="saveDoctor()" class="flex-1 py-2 bg-teal-600 text-white rounded-full text-sm font-semibold">Guardar</button>';
+        html += '</div></div></div>';
+
+        return html;
+    }
+
+    window.showDoctorModal = function() {
+        document.getElementById('doctor-modal').style.display = 'flex';
+    };
+    window.closeDoctorModal = function() {
+        document.getElementById('doctor-modal').style.display = 'none';
+    };
+    window.saveDoctor = async function() {
+        var name = document.getElementById('doc-name').value.trim();
+        if (!name) { alert('El nombre es obligatorio'); return; }
+        await api('/api/doctors', { method: 'POST', body: JSON.stringify({
+            name: name,
+            specialty: document.getElementById('doc-specialty').value.trim(),
+            bio: document.getElementById('doc-bio').value.trim(),
+        })});
+        closeDoctorModal();
+        renderPage();
+    };
+    window.deleteDoctor = async function(id) {
+        if (!confirm('¿Eliminar este doctor?')) return;
+        await api('/api/doctors/' + id, { method: 'DELETE' });
+        renderPage();
+    };
+
+    // ============================================================
+    // BLOQUEO DE HORARIOS
+    // ============================================================
+    function renderBloqueo(blocked, doctors) {
+        var today = new Date().toISOString().split('T')[0];
+        var html = '<div class="fade-in">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">🔒 Bloqueo de Horarios</h2>';
+        html += '<button onclick="showBloqueoModal()" class="px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-full hover:bg-teal-700">+ Bloquear</button>';
+        html += '</div>';
+
+        html += '<div class="card p-4 mb-6">';
+        html += '<h3 class="font-bold text-gray-800 mb-2">Nuevo bloqueo</h3>';
+        html += '<div class="grid grid-cols-2 md:grid-cols-5 gap-3 items-end">';
+        html += '<div><label class="text-xs text-gray-500">Doctor</label><select id="bl-doctor" class="w-full border rounded-xl px-3 py-2 text-sm">';
+        html += '<option value="">Toda la clínica</option>';
+        for (var i = 0; i < doctors.length; i++) {
+            html += '<option value="' + doctors[i].id + '">' + escHtml(doctors[i].name) + '</option>';
+        }
+        html += '</select></div>';
+        html += '<div><label class="text-xs text-gray-500">Fecha</label><input type="date" id="bl-date" min="' + today + '" class="w-full border rounded-xl px-3 py-2 text-sm"></div>';
+        html += '<div><label class="text-xs text-gray-500">Desde</label><input type="time" id="bl-from" class="w-full border rounded-xl px-3 py-2 text-sm"></div>';
+        html += '<div><label class="text-xs text-gray-500">Hasta</label><input type="time" id="bl-to" class="w-full border rounded-xl px-3 py-2 text-sm"></div>';
+        html += '<div><button onclick="saveBloqueo()" class="w-full py-2 bg-teal-600 text-white rounded-full text-sm font-semibold">Bloquear</button></div>';
+        html += '</div>';
+        html += '<p class="text-xs text-gray-400 mt-2">💡 Deja Desde y Hasta vacíos para bloquear todo el día</p>';
+        html += '</div>';
+
+        if (blocked.length === 0) {
+            html += '<div class="text-center py-8 text-gray-400">No hay bloqueos registrados</div>';
+        } else {
+            html += '<div class="card p-4"><h3 class="font-bold text-gray-800 mb-3">Bloqueos activos</h3>';
+            html += '<div class="space-y-2">';
+            for (var i = 0; i < blocked.length; i++) {
+                var b = blocked[i];
+                var docName = '';
+                for (var j = 0; j < doctors.length; j++) {
+                    if (doctors[j].id === b.doctor_id) { docName = doctors[j].name; break; }
+                }
+                var dateStr = b.block_date ? new Date(b.block_date + 'T12:00:00').toLocaleDateString('es-DO') : '—';
+                var timeStr = (b.start_time || 'Todo el día') + (b.end_time ? ' — ' + b.end_time : '');
+                var who = docName || 'Toda la clínica';
+                html += '<div class="flex items-center justify-between p-3 bg-orange-50 rounded-xl">';
+                html += '<div><p class="font-medium text-sm">' + dateStr + ' — ' + timeStr + '</p><p class="text-xs text-gray-500">' + who + '</p></div>';
+                html += '<button onclick="deleteBloqueo(' + b.id + ')" class="text-red-500 text-sm">🗑️</button>';
+                html += '</div>';
+            }
+            html += '</div></div>';
+        }
+        html += '</div>';
+
+        return html;
+    }
+
+    window.saveBloqueo = async function() {
+        var date = document.getElementById('bl-date').value;
+        if (!date) { alert('Selecciona una fecha'); return; }
+        await api('/api/blocked-schedules', { method: 'POST', body: JSON.stringify({
+            doctor_id: document.getElementById('bl-doctor').value || null,
+            block_date: date,
+            start_time: document.getElementById('bl-from').value,
+            end_time: document.getElementById('bl-to').value,
+        })});
+        renderPage();
+    };
+    window.deleteBloqueo = async function(id) {
+        if (!confirm('¿Eliminar este bloqueo?')) return;
+        await api('/api/blocked-schedules/' + id, { method: 'DELETE' });
+        renderPage();
+    };
 </script>
 </body>
 </html>
