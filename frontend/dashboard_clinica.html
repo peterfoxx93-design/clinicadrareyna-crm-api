@@ -28,12 +28,25 @@
         .sidebar-link:hover { background: #e8f0fe; }
         .sidebar-link.active { background: #4472C4; color: white; }
         .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        /* Mobile responsive sidebar */
+        #sidebar-overlay { display: none; }
+        @media (max-width: 768px) {
+            #sidebar { position: fixed; left: -280px; top: 0; bottom: 0; z-index: 100; transition: left 0.25s; }
+            #sidebar.open { left: 0; }
+            #sidebar-overlay { display: none; position: fixed; inset: 0; z-index: 99; background: rgba(0,0,0,0.4); }
+            #sidebar-overlay.show { display: block; }
+            #toggle-sidebar { display: flex !important; }
+            #main-content { padding-top: 3.5rem !important; }
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body class="min-h-screen flex" id="app">
+    <!-- SIDEBAR OVERLAY -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <!-- SIDEBAR -->
-    <aside class="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
+    <aside id="sidebar" class="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
         <div class="p-5 border-b border-gray-100">
             <div class="flex items-center gap-3">
                 <img src="/static/logo_clinica.jpg" style="height:38px;width:38px;border-radius:50%;object-fit:cover" alt="RP">
@@ -62,6 +75,7 @@
 
     <!-- MAIN -->
     <main class="flex-1 p-6 overflow-y-auto" id="main-content">
+        <button id="toggle-sidebar" onclick="toggleSidebar()" class="fixed top-4 left-4 z-50 hidden items-center justify-center w-10 h-10 bg-white rounded-xl shadow-md border border-gray-200 text-gray-600 hover:bg-gray-50 md:hidden" style="display:none">☰</button>
         <div class="flex items-center justify-center h-64 text-gray-400">Cargando...</div>
     </main>
 
@@ -1004,14 +1018,24 @@
     // INIT
     // ============================================================
     (function() {
+        // Toggle sidebar
+        window.toggleSidebar = function() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebar-overlay').classList.toggle('show');
+        };
+
         var links = document.querySelectorAll('#sidebar-nav a');
         for (var i = 0; i < links.length; i++) {
             links[i].addEventListener('click', function(e) {
                 e.preventDefault();
+                // Close sidebar on mobile
+                document.getElementById('sidebar').classList.remove('open');
+                document.getElementById('sidebar-overlay').classList.remove('show');
                 navigateTo(this.getAttribute('href'));
             });
         }
         window.addEventListener('popstate', function() { renderPage(); });
+        // Fix initial active link
         setActiveLink(window.location.pathname);
         renderPage();
     })();
