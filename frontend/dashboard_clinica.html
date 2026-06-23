@@ -78,6 +78,13 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
 
+    <!-- FLOATING HOME BUTTON -->
+    <a href="/" id="btn-home" onclick="event.preventDefault();navigateTo('/')"
+       class="fixed bottom-6 right-6 z-50 w-12 h-12 bg-teal-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-teal-700 transition-all md:hidden"
+       title="Dashboard">
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    </a>
+
     <!-- MAIN -->
     <main class="flex-1 p-6 overflow-y-auto" id="main-content">
         <div class="flex items-center justify-center h-64 text-gray-400">Cargando...</div>
@@ -150,6 +157,7 @@
     function navigateTo(url) {
         history.pushState(null, '', url);
         setActiveLink(url.split('?')[0]);
+        if (window.updateHomeButton) window.updateHomeButton();
         renderPage();
     }
 
@@ -1028,6 +1036,17 @@
             document.getElementById('sidebar-overlay').classList.toggle('show');
         };
 
+        // Show/hide home button based on page
+        window.updateHomeButton = function() {
+            var btn = document.getElementById('btn-home');
+            if (!btn) return;
+            if (window.location.pathname === '/') {
+                btn.classList.add('hidden');
+            } else {
+                btn.classList.remove('hidden');
+            }
+        };
+
         var links = document.querySelectorAll('#sidebar-nav a');
         for (var i = 0; i < links.length; i++) {
             links[i].addEventListener('click', function(e) {
@@ -1042,6 +1061,7 @@
         // Fix initial active link
         setActiveLink(window.location.pathname);
         renderPage();
+        if (window.updateHomeButton) window.updateHomeButton();
     })();
 
     // ============================================================
