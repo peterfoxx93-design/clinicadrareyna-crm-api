@@ -1,13 +1,27 @@
 services:
   - type: web
-    name: clinica-pimentel-crm
+    name: clinica-crm-api
     runtime: python
-    region: ohio
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn -b 0.0.0.0:$PORT backend.app:app
+    startCommand: gunicorn backend.app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
     envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clinica-crm-db
+          property: connectionString
       - key: CLINICA_SECRET
         generateValue: true
-      - key: PORT
-        value: "10000"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        value: onboarding@resend.dev
+      - key: RESEND_TO
+        value: espartaco.rd@gmail.com
+      - key: CORS_ORIGINS
+        value: https://dra-reyna-pimentel.vercel.app
+
+databases:
+  - name: clinica-crm-db
+    databaseName: clinica
+    plan: free
