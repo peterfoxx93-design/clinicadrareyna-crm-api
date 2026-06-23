@@ -260,6 +260,11 @@ def servicios():
 def reportes():
     return render_template('dashboard_clinica.html')
 
+@app.route('/finanzas')
+@login_required
+def finanzas():
+    return render_template('dashboard_clinica.html')
+
 # ============================================================
 # API — Stats
 # ============================================================
@@ -769,6 +774,98 @@ def api_get_report():
         },
         'patients': patient_rows,
         'generated_at': now.isoformat(),
+    })
+
+# ============================================================
+# API — Finance Dashboard
+# ============================================================
+@app.route('/api/finance/overview', methods=['GET'])
+@login_required
+def api_finance_overview():
+    """Financial overview: total income, monthly breakdown, by service, pending."""
+    now = datetime.utcnow()
+
+    # Total income (all paid amounts)
+    total_income = db.session.query(func.sum(TreatmentPlan.amount_paid)).scalar() or 0.0
+
+    # Pending balance (treatment plans with balance > 0)
+    pending_balance = db.session.query(func.sum(TreatmentPlan.amount - TreatmentPlan.amount_paid)).filter(
+        TreatmentPlan.status.in_(['aceptado', 'en_progreso', 'presentado'])
+    ).scalar() or 0.0
+
+    # This month income
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_income = db.session.query(func.sum(TreatmentPlan.amount_paid)).filter(
+        TreatmentPlan.completed_at >= month_start
+    ).scalar() or 0.0
+
+    # Monthly breakdown (last 12 months)
+    months = []
+    for i in range(11, -1, -1):
+        m_start = (month_start - timedelta(days=30 * i)).replace(day=1)
+        if i > 0:
+            m_end = (month_start - timedelta(days=30 * (i - 1))).replace(day=1)
+        else:
+            m_end = now
+        income = db.session.query(func.sum(TreatmentPlan.amount_paid)).filter(
+            TreatmentPlan.completed_at >= m_start,
+            TreatmentPlan.completed_at < m_end
+        ).scalar() or 0.0
+        months.append({
+            'month': m_start.strftime('%Y-%m'),
+            'income': float(income),
+        })
+
+    # Income by service (from completed treatment plans)
+    services_income = db.session.query(
+        TreatmentPlan.title,
+        func.sum(TreatmentPlan.amount_paid)
+    ).filter(
+        TreatmentPlan.completed_at.isnot(None)
+    ).group_by(TreatmentPlan.title).all()
+
+    # Completed treatments count
+    completed_treatments = TreatmentPlan.query.filter(
+        TreatmentPlan.status == 'completado'
+    ).count()
+
+    # Active treatments count
+    active_treatments = TreatmentPlan.query.filter(
+        TreatmentPlan.status.in_(['aceptado', 'en_progreso'])
+    ).count()
+
+    return jsonify({
+        'total_income': float(total_income),
+        'pending_balance': float(pending_balance),
+        'month_income': float(month_income),
+        'monthly': months,
+        'by_service': [{'service': s, 'income': float(v)} for s, v in services_income],
+        'completed_treatments': completed_treatments,
+        'active_treatments': active_treatments,
+    })
+
+@app.route('/api/finance/pending', methods=['GET'])
+@login_required
+def api_finance_pending():
+    """List treatment plans with pending balance."""
+    plans = TreatmentPlan.query.filter(
+        TreatmentPlan.amount > TreatmentPlan.amount_paid,
+        TreatmentPlan.status.in_(['presentado', 'aceptado', 'en_progreso'])
+    ).order_by(TreatmentPlan.created_at.desc()).all()
+
+    return jsonify({
+        'pending': [{
+            'id': p.id,
+            'patient_name': p.patient.name,
+            'patient_id': p.patient_id,
+            'title': p.title,
+            'amount': float(p.amount),
+            'amount_paid': float(p.amount_paid),
+            'balance': float(p.amount - p.amount_paid),
+            'status': p.status,
+            'created_at': p.created_at.isoformat() if p.created_at else None,
+        } for p in plans],
+        'total': len(plans)
     })
 
 # ============================================================
