@@ -87,6 +87,14 @@ def seed_services():
 
 with app.app_context():
     seed_services()
+    # Migration: add doctor_id column if missing
+    try:
+        db.session.execute(db.text('ALTER TABLE appointments ADD COLUMN doctor_id INTEGER REFERENCES doctors(id)'))
+        db.session.commit()
+        print("[Migration] Added doctor_id to appointments")
+    except Exception:
+        db.session.rollback()
+        # Column already exists, no problem
 
 # ============================================================
 # PUBLIC ROUTES (no auth)
