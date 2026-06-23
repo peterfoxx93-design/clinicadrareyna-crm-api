@@ -131,6 +131,30 @@ class TreatmentPlan(db.Model):
         }
 
 
+class Service(db.Model):
+    """Servicios de la clínica (se reflejan en el widget de reserva)"""
+    __tablename__ = 'services'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, default='')
+    duration_minutes = db.Column(db.Integer, default=30)
+    price = db.Column(db.Float, default=0.0)
+    active = db.Column(db.Boolean, default=True)
+    sort_order = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'duration_minutes': self.duration_minutes,
+            'price': self.price,
+            'active': self.active,
+            'sort_order': self.sort_order,
+        }
+
+
 class PatientInteraction(db.Model):
     """Historial de interacciones con el paciente"""
     __tablename__ = 'patient_interactions'

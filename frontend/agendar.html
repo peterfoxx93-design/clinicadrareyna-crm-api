@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agendar Cita — Dra. Reyna Pimentel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        body { background: #f0f4f8; min-height: 100vh; }
+        .step { display: none; }
+        .step.active { display: block; animation: fadeIn 0.35s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+        .service-card { cursor: pointer; border: 2px solid transparent; transition: all 0.2s; }
+        .service-card:hover { border-color: #008080; transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,128,128,0.1); }
+        .service-card.selected { border-color: #008080; background: #e6f5f5; }
+        .time-slot { cursor: pointer; border: 1px solid #e5e7eb; transition: all 0.15s; }
+        .time-slot:hover { border-color: #008080; background: #e6f5f5; }
+        .time-slot.selected { border-color: #008080; background: #008080; color: white; }
+        .btn-dental { background: #008080; color: white; transition: all 0.15s; }
+        .btn-dental:hover { background: #006666; transform: translateY(-1px); }
+        .btn-dental:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    </style>
+</head>
+<body>
+
+<div class="min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl">
+
+        <!-- HEADER -->
+        <div class="text-center mb-8">
+            <img src="/static/logo_clinica.jpg" class="w-20 h-20 rounded-full mx-auto mb-3 object-cover shadow-lg" alt="RP">
+            <h1 class="text-2xl font-bold text-gray-900">Dra. Reyna Pimentel</h1>
+            <p class="text-gray-500 mt-1">Agenda tu cita en línea</p>
+        </div>
+
+        <!-- PROGRESS -->
+        <div class="flex items-center justify-center gap-2 mb-8 text-sm" id="progress">
+            <span class="step-indicator" data-step="1">1. Servicio</span>
+            <span class="text-gray-300">→</span>
+            <span class="step-indicator" data-step="2">2. Fecha y hora</span>
+            <span class="text-gray-300">→</span>
+            <span class="step-indicator" data-step="3">3. Tus datos</span>
+            <span class="text-gray-300">→</span>
+            <span class="step-indicator" data-step="4">4. Confirmar</span>
+        </div>
+
+        <!-- CARD -->
+        <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+
+            <!-- STEP 1: Servicio -->
+            <div class="step active" id="step-1">
+                <h2 class="text-lg font-bold text-gray-900 mb-1">Elige un servicio</h2>
+                <p class="text-sm text-gray-500 mb-5">Selecciona el tipo de consulta que necesitas</p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="services-list">
+                    <div class="text-center py-8 text-gray-400">Cargando servicios...</div>
+                </div>
+                <div class="mt-6 text-right">
+                    <button onclick="nextStep()" id="btn-step1" disabled class="btn-dental px-6 py-3 rounded-xl font-medium">Continuar</button>
+                </div>
+            </div>
+
+            <!-- STEP 2: Fecha y hora -->
+            <div class="step" id="step-2">
+                <h2 class="text-lg font-bold text-gray-900 mb-1">Elige fecha y hora</h2>
+                <p class="text-sm text-gray-500 mb-5">Selecciona el día y horario disponible</p>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Fecha</label>
+                    <input type="date" id="booking-date" class="w-full border rounded-xl p-3 text-sm" min="">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Horario disponible</label>
+                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-2" id="time-slots">
+                        <div class="text-center py-4 text-gray-400 col-span-4">Selecciona una fecha primero</div>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex justify-between">
+                    <button onclick="prevStep()" class="btn border border-gray-300 px-6 py-3 rounded-xl font-medium text-sm">Atrás</button>
+                    <button onclick="nextStep()" id="btn-step2" disabled class="btn-dental px-6 py-3 rounded-xl font-medium">Continuar</button>
+                </div>
+            </div>
+
+            <!-- STEP 3: Datos del paciente -->
+            <div class="step" id="step-3">
+                <h2 class="text-lg font-bold text-gray-900 mb-1">Tus datos</h2>
+                <p class="text-sm text-gray-500 mb-5">Para confirmar tu cita</p>
+                <div class="space-y-3">
+                    <input id="bk-name" placeholder="Nombre completo *" class="w-full border rounded-xl p-3 text-sm" autocomplete="name">
+                    <input id="bk-phone" placeholder="Teléfono *" class="w-full border rounded-xl p-3 text-sm" type="tel" autocomplete="tel">
+                    <input id="bk-email" placeholder="Email (para recibir confirmación)" class="w-full border rounded-xl p-3 text-sm" type="email" autocomplete="email">
+                    <textarea id="bk-notes" placeholder="Notas adicionales (opcional)" class="w-full border rounded-xl p-3 text-sm" rows="2"></textarea>
+                </div>
+                <div class="mt-6 flex justify-between">
+                    <button onclick="prevStep()" class="btn border border-gray-300 px-6 py-3 rounded-xl font-medium text-sm">Atrás</button>
+                    <button onclick="nextStep()" id="btn-step3" disabled class="btn-dental px-6 py-3 rounded-xl font-medium">Continuar</button>
+                </div>
+            </div>
+
+            <!-- STEP 4: Confirmar -->
+            <div class="step" id="step-4">
+                <h2 class="text-lg font-bold text-gray-900 mb-1">Confirma tu cita</h2>
+                <p class="text-sm text-gray-500 mb-5">Revisa los datos antes de confirmar</p>
+
+                <div class="bg-gray-50 rounded-xl p-5 space-y-3 text-sm mb-6" id="confirm-details">
+                    <div class="flex justify-between"><span class="text-gray-500">Servicio:</span> <span class="font-medium" id="cf-service">—</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Fecha:</span> <span class="font-medium" id="cf-date">—</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Hora:</span> <span class="font-medium" id="cf-time">—</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Nombre:</span> <span class="font-medium" id="cf-name">—</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Teléfono:</span> <span class="font-medium" id="cf-phone">—</span></div>
+                    <div class="flex justify-between"><span class="text-gray-500">Email:</span> <span class="font-medium" id="cf-email">—</span></div>
+                </div>
+
+                <div class="mt-6 flex justify-between">
+                    <button onclick="prevStep()" class="btn border border-gray-300 px-6 py-3 rounded-xl font-medium text-sm">Atrás</button>
+                    <button onclick="confirmBooking()" id="btn-confirm" class="btn-dental px-8 py-3 rounded-xl font-medium">✅ Confirmar reserva</button>
+                </div>
+            </div>
+
+            <!-- SUCCESS -->
+            <div class="step text-center py-10" id="step-success">
+                <div class="text-6xl mb-4">🎉</div>
+                <h2 class="text-xl font-bold text-gray-900 mb-2">¡Cita registrada!</h2>
+                <p class="text-gray-500">Te llegará una confirmación pronto.</p>
+                <p class="text-gray-400 text-sm mt-4">Puedes agendar otra cita cuando quieras.</p>
+                <button onclick="resetForm()" class="btn-dental px-6 py-3 rounded-xl font-medium mt-6">Agendar otra cita</button>
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <p class="text-center text-xs text-gray-400 mt-8">
+            Dra. Reyna Pimentel — Odontóloga · Puerto Plata, RD · 📞 809-584-7033
+        </p>
+    </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let STATE = {
+    services: [],
+    selectedService: null,
+    selectedDate: null,
+    selectedTime: null,
+    currentStep: 1,
+};
+
+const HOURS = ['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30',
+               '14:00','14:30','15:00','15:30','16:00','16:30','17:00'];
+
+function $(id) { return document.getElementById(id); }
+
+// ============================================================
+// INIT
+// ============================================================
+async function init() {
+    // Load services
+    try {
+        var res = await fetch('/api/public/services');
+        var data = await res.json();
+        STATE.services = data.services || [];
+        renderServices();
+    } catch(e) {
+        $('services-list').innerHTML = '<div class="text-center py-8 text-red-400">Error al cargar servicios</div>';
+    }
+
+    // Set min date (today)
+    var today = new Date();
+    var y = today.getFullYear();
+    var m = String(today.getMonth() + 1).padStart(2, '0');
+    var d = String(today.getDate()).padStart(2, '0');
+    $('booking-date').min = y + '-' + m + '-' + d;
+    $('booking-date').value = y + '-' + m + '-' + d;
+    STATE.selectedDate = $('booking-date').value;
+    renderTimeSlots();
+
+    // Date change
+    $('booking-date').addEventListener('change', function() {
+        STATE.selectedDate = this.value;
+        STATE.selectedTime = null;
+        renderTimeSlots();
+        checkStep2();
+    });
+
+    // Input fields validation for step 3
+    ['bk-name','bk-phone'].forEach(function(id) {
+        $(id).addEventListener('input', checkStep3);
+    });
+}
+
+// ============================================================
+// SERVICES
+// ============================================================
+function renderServices() {
+    var html = '';
+    var services = STATE.services;
+    if (services.length === 0) {
+        html = '<div class="text-center py-8 text-gray-400 col-span-2">No hay servicios disponibles</div>';
+    }
+    for (var i = 0; i < services.length; i++) {
+        var s = services[i];
+        html += '<div class="service-card rounded-xl p-4 border" data-id="' + s.id + '" onclick="selectService(' + s.id + ')">';
+        html += '<div class="font-medium text-gray-900">' + escHtml(s.name) + '</div>';
+        if (s.description) html += '<div class="text-xs text-gray-500 mt-1">' + escHtml(s.description) + '</div>';
+        html += '<div class="flex justify-between items-center mt-2">';
+        html += '<span class="text-xs text-gray-400">' + s.duration_minutes + ' min</span>';
+        if (s.price > 0) html += '<span class="text-sm font-bold text-dental-600">$' + s.price.toLocaleString() + '</span>';
+        else html += '<span class="text-xs text-gray-400">Consulta</span>';
+        html += '</div></div>';
+    }
+    $('services-list').innerHTML = html;
+}
+
+function selectService(id) {
+    STATE.selectedService = id;
+    document.querySelectorAll('.service-card').forEach(function(el) {
+        el.classList.toggle('selected', parseInt(el.dataset.id) === id);
+    });
+    $('btn-step1').disabled = false;
+}
+
+// ============================================================
+// TIME SLOTS
+// ============================================================
+function renderTimeSlots() {
+    var html = '';
+    var today = new Date();
+    var selDate = new Date(STATE.selectedDate + 'T12:00:00');
+
+    for (var i = 0; i < HOURS.length; i++) {
+        var h = HOURS[i];
+        var parts = h.split(':');
+        var hour = parseInt(parts[0]);
+        var min = parseInt(parts[1]);
+
+        // Skip past times if today
+        var isPast = false;
+        if (selDate.toDateString() === today.toDateString()) {
+            var slotTime = new Date();
+            slotTime.setHours(hour, min, 0, 0);
+            if (slotTime <= today) isPast = true;
+        }
+
+        var half = hour >= 12 ? 'PM' : 'AM';
+        var h12 = hour > 12 ? hour - 12 : hour;
+        if (h12 === 0) h12 = 12;
+        var display = h12 + ':' + String(min).padStart(2, '0') + ' ' + half;
+
+        if (isPast) {
+            html += '<div class="time-slot rounded-lg p-3 text-center text-xs text-gray-300 bg-gray-50 cursor-not-allowed">' + display + '</div>';
+        } else {
+            html += '<div class="time-slot rounded-lg p-3 text-center text-xs" data-time="' + h + '" onclick="selectTime(this, \'' + h + '\')">' + display + '</div>';
+        }
+    }
+    $('time-slots').innerHTML = html;
+}
+
+function selectTime(el, time) {
+    STATE.selectedTime = time;
+    document.querySelectorAll('.time-slot:not(.cursor-not-allowed)').forEach(function(e) {
+        e.classList.remove('selected');
+    });
+    el.classList.add('selected');
+    checkStep2();
+}
+
+function checkStep2() {
+    $('btn-step2').disabled = !(STATE.selectedDate && STATE.selectedTime);
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function nextStep() {
+    if (STATE.currentStep < 4) {
+        STATE.currentStep++;
+        showStep(STATE.currentStep);
+    }
+}
+
+function prevStep() {
+    if (STATE.currentStep > 1) {
+        STATE.currentStep--;
+        showStep(STATE.currentStep);
+    }
+}
+
+function showStep(n) {
+    document.querySelectorAll('.step').forEach(function(el) { el.classList.remove('active'); });
+    $('step-' + n).classList.add('active');
+
+    // Update progress
+    document.querySelectorAll('.step-indicator').forEach(function(el) {
+        var step = parseInt(el.dataset.step);
+        el.style.fontWeight = step === n ? '600' : '400';
+        el.style.color = step === n ? '#008080' : step < n ? '#008080' : '#9ca3af';
+    });
+
+    // Step 4: populate confirm
+    if (n === 4) populateConfirm();
+    // Step 1: check service
+    if (n === 1) checkStep1();
+    // Step 2: check time
+    if (n === 2) checkStep2();
+    // Step 3: check fields
+    if (n === 3) checkStep3();
+}
+
+function checkStep1() {
+    $('btn-step1').disabled = !STATE.selectedService;
+}
+
+function checkStep3() {
+    var name = $('bk-name').value.trim();
+    var phone = $('bk-phone').value.trim();
+    $('btn-step3').disabled = !(name && phone);
+}
+
+// ============================================================
+// CONFIRM
+// ============================================================
+function populateConfirm() {
+    var service = STATE.services.find(function(s) { return s.id === STATE.selectedService; });
+    $('cf-service').textContent = service ? service.name : '—';
+
+    var d = new Date(STATE.selectedDate + 'T12:00:00');
+    var opts = { weekday:'long', day:'numeric', month:'long' };
+    $('cf-date').textContent = d.toLocaleDateString('es-DO', opts);
+
+    var parts = STATE.selectedTime.split(':');
+    var hour = parseInt(parts[0]);
+    var min = parts[1];
+    var half = hour >= 12 ? 'PM' : 'AM';
+    var h12 = hour > 12 ? hour - 12 : hour;
+    if (h12 === 0) h12 = 12;
+    $('cf-time').textContent = h12 + ':' + min + ' ' + half;
+
+    $('cf-name').textContent = $('bk-name').value.trim() || '—';
+    $('cf-phone').textContent = $('bk-phone').value.trim() || '—';
+    $('cf-email').textContent = $('bk-email').value.trim() || '—';
+}
+
+async function confirmBooking() {
+    var btn = $('btn-confirm');
+    btn.disabled = true;
+    btn.textContent = '⏳ Reservando...';
+
+    try {
+        var res = await fetch('/api/public/book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: $('bk-name').value.trim(),
+                phone: $('bk-phone').value.trim(),
+                email: $('bk-email').value.trim(),
+                service: STATE.services.find(function(s) { return s.id === STATE.selectedService; }).name,
+                datetime: STATE.selectedDate + 'T' + STATE.selectedTime + ':00',
+                notes: $('bk-notes').value.trim(),
+            })
+        });
+        var data = await res.json();
+        if (data.success) {
+            document.querySelectorAll('.step').forEach(function(el) { el.classList.remove('active'); });
+            $('step-success').classList.add('active');
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo reservar'));
+            btn.disabled = false;
+            btn.textContent = '✅ Confirmar reserva';
+        }
+    } catch(e) {
+        alert('Error de conexión. Intenta de nuevo.');
+        btn.disabled = false;
+        btn.textContent = '✅ Confirmar reserva';
+    }
+}
+
+function resetForm() {
+    STATE.selectedService = null;
+    STATE.selectedDate = $('booking-date').value;
+    STATE.selectedTime = null;
+    STATE.currentStep = 1;
+    $('bk-name').value = '';
+    $('bk-phone').value = '';
+    $('bk-email').value = '';
+    $('bk-notes').value = '';
+    document.querySelectorAll('.service-card').forEach(function(el) { el.classList.remove('selected'); });
+    $('btn-step1').disabled = true;
+    renderTimeSlots();
+    showStep(1);
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Start
+init();
+</script>
+</body>
+</html>

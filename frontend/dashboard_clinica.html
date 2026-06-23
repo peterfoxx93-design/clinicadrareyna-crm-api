@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clínica Dental Pimentel — CRM</title>
+    <title>Dra. Reyna Pimentel — CRM</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -36,8 +36,8 @@
             <div class="flex items-center gap-3">
                 <img src="/static/logo_clinica.jpg" style="height:38px;width:38px;border-radius:50%;object-fit:cover" alt="RP">
                 <div>
-                    <div class="font-bold text-gray-900 text-lg leading-tight">Dental Pimentel</div>
-                    <div class="text-xs text-gray-500">CRM</div>
+                    <div class="font-bold text-gray-900 text-lg leading-tight">Dra. Reyna Pimentel</div>
+                    <div class="text-xs text-gray-500">Odontóloga</div>
                 </div>
             </div>
         </div>
@@ -47,6 +47,7 @@
             <a href="/citas" class="sidebar-link"><span>📅</span> Citas</a>
             <a href="/tratamientos" class="sidebar-link"><span>🦷</span> Tratamientos</a>
             <a href="/recall" class="sidebar-link"><span>🔄</span> Recall</a>
+            <a href="/servicios" class="sidebar-link"><span>🛠️</span> Servicios</a>
             <a href="/reportes" class="sidebar-link"><span>📈</span> Reportes</a>
         </nav>
         <div class="p-4 border-t border-gray-100">
@@ -162,6 +163,9 @@
             } else if (path === '/reportes') {
                 var stats = await api('/api/stats');
                 main.innerHTML = renderReports(stats);
+            } else if (path === '/servicios') {
+                var data = await api('/api/services');
+                main.innerHTML = renderServices(data ? data.services : []);
             } else {
                 main.innerHTML = '<div class="text-center py-16 text-gray-400">Página no encontrada</div>';
             }
@@ -274,16 +278,21 @@
         html += '</div>';
         html += '<div class="card overflow-hidden"><table class="w-full text-sm">';
         html += '<thead><tr class="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wider">';
-        html += '<th class="p-4">Nombre</th><th class="p-4">Contacto</th><th class="p-4">Estado</th><th class="p-4">Fuente</th><th class="p-4">Creado</th>';
+        html += '<th class="p-4">Nombre / Motivo</th><th class="p-4">Contacto</th><th class="p-4">Estado</th><th class="p-4">Fuente</th><th class="p-4">Creado</th><th class="p-4"></th>';
         html += '</tr></thead><tbody class="divide-y divide-gray-100">';
         for (var i = 0; i < patients.length; i++) {
             var p = patients[i];
-            html += '<tr class="hover:bg-gray-50 cursor-pointer" onclick="navigateTo(\'/paciente/' + p.id + '\')">';
-            html += '<td class="p-4 font-medium text-gray-900">' + escHtml(p.name) + '</td>';
+            html += '<tr class="hover:bg-gray-50">';
+            html += '<td class="p-4 font-medium text-gray-900">' + escHtml(p.name);
+            if (p.notes) html += '<div class="text-xs text-gray-400 font-normal mt-0.5">🩺 ' + escHtml(p.notes) + '</div>';
+            html += '</td>';
             html += '<td class="p-4 text-gray-600 text-xs">' + escHtml(p.phone || '') + '</td>';
             html += '<td class="p-4">' + sBadge(p.status) + '</td>';
             html += '<td class="p-4 text-gray-500 text-xs">' + p.source + '</td>';
             html += '<td class="p-4 text-gray-500 text-xs">' + fmtDate(p.created_at) + '</td>';
+            html += '<td class="p-4 text-right">' +
+                '<button onclick="event.stopPropagation();deletePatientConfirm(' + p.id + ')" class="text-gray-400 hover:text-red-600 transition text-xs font-medium" title="Eliminar paciente">🗑️ Eliminar</button>' +
+                '</td>';
             html += '</tr>';
         }
         if (patients.length === 0) html += '<tr><td colspan="5" class="p-8 text-center text-gray-400">No hay pacientes</td></tr>';
@@ -302,6 +311,7 @@
         html += '<select id="np-source" class="w-full border rounded-xl p-3 text-sm">';
         html += '<option value="whatsapp">WhatsApp</option><option value="web">Sitio web</option><option value="referral">Referido</option><option value="walkin">Llegó solo</option>';
         html += '</select>';
+        html += '<textarea id="np-motivo" placeholder="Motivo de consulta (ej: limpieza, ortodoncia, extracción...)" class="w-full border rounded-xl p-3 text-sm" rows="2"></textarea>';
         html += '<input id="np-ref" placeholder="Referido por (opcional)" class="w-full border rounded-xl p-3 text-sm">';
         html += '</div>';
         html += '<div class="flex gap-2 mt-4">';
@@ -326,6 +336,7 @@
                 email: document.getElementById('np-email').value.trim(),
                 source: document.getElementById('np-source').value,
                 referral_source: document.getElementById('np-ref').value.trim(),
+                notes: document.getElementById('np-motivo').value.trim(),
             })
         });
         if (data && data.success) {
@@ -346,6 +357,8 @@
         html += '<a href="/pacientes" class="text-gray-400 hover:text-gray-600">← Volver</a>';
         html += '<h2 class="text-2xl font-bold text-gray-900">' + escHtml(pt.name) + '</h2>';
         html += sBadge(pt.status);
+        html += '<div class="flex-1"></div>';
+        html += '<button onclick="deletePatientConfirm(' + pt.id + ')" class="text-sm text-red-400 hover:text-red-600 transition font-medium">🗑️ Eliminar</button>';
         html += '</div>';
 
         // Info cards
@@ -353,7 +366,7 @@
         html += infoCard('Teléfono', escHtml(pt.phone || '-'));
         html += infoCard('Email', escHtml(pt.email || '-'));
         html += infoCard('Fuente', pt.source || '-');
-        html += infoCard('Creado', fmtDate(pt.created_at));
+        html += infoCard('🩺 Motivo', escHtml(pt.notes || '—'));
         html += infoCard('Última visita', pt.last_visit ? fmtDate(pt.last_visit) : '-');
         html += infoCard('Próximo recall', pt.next_recall ? fmtDate(pt.next_recall) : '-');
         html += '</div>';
@@ -718,7 +731,7 @@
         html += '<div style="border-bottom:3px solid #008080;padding-bottom:16px;margin-bottom:24px">';
         html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:4px">';
         html += '<img src="/static/logo_clinica.jpg" style="height:44px;width:44px;border-radius:50%;object-fit:cover" alt="RP">';
-        html += '<div><div style="font-size:20px;font-weight:700;color:#1f2937">' + escHtml(clinica.nombre || 'Clínica Dental') + '</div>';
+        html += '<div><div style="font-size:20px;font-weight:700;color:#1f2937">' + escHtml(clinica.nombre || 'Dra. Reyna Pimentel') + '</div>';
         html += '<div style="font-size:13px;color:#6b7280">' + escHtml(clinica.eslogan || '') + '</div></div></div>';
         html += '<div style="display:flex;justify-content:space-between;font-size:13px;color:#9ca3af">';
         html += '<span>📅 Generado: ' + new Date().toLocaleDateString('es-DO', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) + '</span>';
@@ -865,12 +878,111 @@
         for (var k in bs) { lines.push('| ' + (STATUS[k]?.emoji || '') + ' ' + (STATUS[k]?.label || k) + ' | ' + bs[k] + ' |'); }
         lines.push('| Citas | ' + (res.citas || 0) + ' |');
         lines.push('| Ingresos | $' + (res.ingresos || 0).toLocaleString() + ' |');
-        lines.push('', '---', '*Generado por CRM Clínica Dental Pimentel*');
+        lines.push('---', '*Generado por CRM Dra. Reyna Pimentel*');
         var blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url; a.download = 'reporte_clinica.md';
         a.click(); URL.revokeObjectURL(url);
+    }
+
+    // ============================================================
+    // DELETE PATIENT
+    // ============================================================
+    function deletePatientConfirm(id) {
+        if (!confirm('¿Eliminar este paciente? Esta acción no se puede deshacer.')) return;
+        api('/api/patients/' + id, { method: 'DELETE' }).then(function(data) {
+            if (data && data.success) { renderPage(); }
+        }).catch(function(e) {
+            alert('Error al eliminar: ' + e.message);
+        });
+    }
+
+    // ============================================================
+    // SERVICES
+    // ============================================================
+    function renderServices(services) {
+        var html = '<div class="fade-in">';
+        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">🛠️ Servicios</h2>';
+        html += '<button onclick="showNewServiceForm()" class="btn bg-dental-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-dental-600">+ Nuevo Servicio</button>';
+        html += '</div>';
+
+        html += '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">';
+        for (var i = 0; i < services.length; i++) {
+            var s = services[i];
+            html += '<div class="card p-5 flex justify-between items-start">';
+            html += '<div class="flex-1">';
+            html += '<div class="flex items-center gap-2">';
+            html += '<span class="font-medium text-gray-900">' + escHtml(s.name) + '</span>';
+            if (!s.active) html += '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Inactivo</span>';
+            html += '</div>';
+            if (s.description) html += '<div class="text-xs text-gray-500 mt-1">' + escHtml(s.description) + '</div>';
+            html += '<div class="flex gap-3 mt-2 text-xs text-gray-400">';
+            html += '<span>⏱ ' + s.duration_minutes + ' min</span>';
+            if (s.price > 0) html += '<span class="font-medium" style="color:#008080">$' + s.price.toLocaleString() + '</span>';
+            html += '</div></div>';
+            html += '<div class="flex gap-2">';
+            html += '<button onclick="editService(' + s.id + ')" class="text-xs text-gray-400 hover:text-blue-500 transition">✏️</button>';
+            html += '<button onclick="deleteService(' + s.id + ')" class="text-xs text-gray-400 hover:text-red-500 transition">🗑️</button>';
+            html += '</div></div>';
+        }
+        if (services.length === 0) html += '<div class="col-span-2 text-center py-12 text-gray-400">No hay servicios configurados</div>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function showNewServiceForm() {
+        var html = '<div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onclick="if(event.target===this)this.remove()">';
+        html += '<div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl fade-in">';
+        html += '<h3 class="text-lg font-bold text-gray-900 mb-4">Nuevo Servicio</h3>';
+        html += '<div class="space-y-3">';
+        html += '<input id="ns-name" placeholder="Nombre del servicio *" class="w-full border rounded-xl p-3 text-sm" autofocus>';
+        html += '<textarea id="ns-desc" placeholder="Descripción" class="w-full border rounded-xl p-3 text-sm" rows="2"></textarea>';
+        html += '<div class="flex gap-3">';
+        html += '<input id="ns-dur" type="number" value="30" class="w-1/2 border rounded-xl p-3 text-sm" placeholder="Duración (min)">';
+        html += '<input id="ns-price" type="number" value="0" class="w-1/2 border rounded-xl p-3 text-sm" placeholder="Precio $">';
+        html += '</div></div>';
+        html += '<div class="flex gap-2 mt-4">';
+        html += '<button onclick="this.closest(\'.fixed\').remove()" class="flex-1 btn border border-gray-300 rounded-xl p-3 text-sm">Cancelar</button>';
+        html += '<button onclick="createService()" class="flex-1 btn bg-dental-500 text-white rounded-xl p-3 text-sm font-medium">Guardar</button>';
+        html += '</div></div></div>';
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        document.body.appendChild(div.firstElementChild);
+        setTimeout(function() { document.getElementById('ns-name').focus(); }, 100);
+    }
+
+    async function createService() {
+        var name = document.getElementById('ns-name').value.trim();
+        if (!name) { alert('El nombre es obligatorio'); return; }
+        await api('/api/services', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: name,
+                description: document.getElementById('ns-desc').value.trim(),
+                duration_minutes: parseInt(document.getElementById('ns-dur').value) || 30,
+                price: parseFloat(document.getElementById('ns-price').value) || 0,
+            })
+        });
+        var modal = document.querySelector('.fixed');
+        if (modal) modal.remove();
+        renderPage();
+    }
+
+    function editService(id) {
+        // Simple inline toggle active/inactive
+        if (!confirm('¿Cambiar el estado de este servicio?')) return;
+        api('/api/services/' + id, { method: 'PUT', body: JSON.stringify({}) }).then(function() { renderPage(); });
+    }
+
+    function deleteService(id) {
+        if (!confirm('¿Eliminar este servicio?')) return;
+        api('/api/services/' + id, { method: 'DELETE' }).then(function(data) {
+            if (data && data.success) renderPage();
+        }).catch(function(e) {
+            alert('Error: ' + e.message);
+        });
     }
 
     // ============================================================

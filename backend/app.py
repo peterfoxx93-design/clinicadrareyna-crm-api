@@ -1,4 +1,4 @@
-"""Clínica Dental CRM — Backend Flask"""
+"""Clínica Dental CRM — Backend Flask (Render compatible)"""
 import os, sys, json, csv, io
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -8,10 +8,31 @@ from flask import (Flask, render_template, request, redirect, url_for,
                    jsonify, session, send_from_directory)
 from flask_login import (LoginManager, login_user, logout_user,
                           login_required, current_user)
+from flask_cors import CORS
 from sqlalchemy import func
 
+import resend
+
 sys.path.insert(0, os.path.dirname(__file__))
-from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, init_db
+from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, Service, init_db
+
+# Resend
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_8WZh1FS5_NNxkw7opeabxFV7QixMu97cH')
+resend.api_key = RESEND_API_KEY
+RESEND_FROM = os.environ.get('RESEND_FROM', 'onboarding@resend.dev')
+RESEND_TO = os.environ.get('RESEND_TO', 'espartaco.rd@gmail.com')
+
+def send_clinic_email(subject, html_body):
+    """Envía email via Resend."""
+    try:
+        resend.Emails.send({
+            "from": RESEND_FROM,
+            "to": [RESEND_TO],
+            "subject": subject,
+            "html": html_body,
+        })
+    except Exception as e:
+        print(f"[Resend] Error sending email: {e}")
 
 # Config
 BASE = os.path.dirname(os.path.dirname(__file__))
@@ -22,8 +43,17 @@ app = Flask(__name__,
             template_folder=FRONTEND)
 app.debug = False
 app.secret_key = os.environ.get('CLINICA_SECRET', 'reyna-pimentel-2026')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db'))
+
+# Database: Render provides DATABASE_URL (postgres://) — fix for SQLAlchemy
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db'))
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# CORS — permite que la landing page (Vercel) llame a la API
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'https://dra-reyna-pimentel.vercel.app,https://*.vercel.app')
+CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
 
 init_db(app)
 
@@ -34,6 +64,113 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+# ============================================================
+# SEED SERVICES
+# ============================================================
+def seed_services():
+    """Create default services if none exist."""
+    if Service.query.count() == 0:
+        defaults = [
+            ('Consulta general', 'Evaluación completa del estado bucal', 30, 1500.0),
+            ('Limpieza bucal', 'Profilaxis dental: limpieza profunda y remoción de sarro', 45, 2500.0),
+            ('Ortodoncia invisible', 'Consulta inicial de alineadores Invisalign', 60, 0.0),
+            ('Extracción simple', 'Extracción de pieza dental sin complicaciones', 30, 3000.0),
+            ('Blanqueamiento dental', 'Blanqueamiento con gel profesional y leds', 60, 8500.0),
+            ('Radiografía panorámica', 'Estudio radiográfico completo de la boca', 15, 1200.0),
+            ('Revisión de ortodoncia', 'Control periódico de brackets o alineadores', 20, 0.0),
+            ('Urgencia dental', 'Atención inmediata para emergencias', 30, 0.0),
+        ]
+        for i, (name, desc, dur, price) in enumerate(defaults):
+            db.session.add(Service(name=name, description=desc, duration_minutes=dur, price=price, sort_order=i))
+        db.session.commit()
+
+with app.app_context():
+    seed_services()
+
+# ============================================================
+# PUBLIC ROUTES (no auth)
+# ============================================================
+@app.route('/agendar')
+def public_booking():
+    """Página pública de reserva de citas."""
+    return send_from_directory(FRONTEND, 'agendar.html')
+
+@app.route('/api/public/services', methods=['GET'])
+def api_public_services():
+    """Lista servicios activos (público)."""
+    services = Service.query.filter_by(active=True).order_by(Service.sort_order).all()
+    return jsonify({'services': [s.to_dict() for s in services]})
+
+@app.route('/api/public/book', methods=['POST'])
+def api_public_book():
+    """Reserva pública sin autenticación."""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Datos requeridos'}), 400
+
+    name = (data.get('name') or '').strip()
+    phone = (data.get('phone') or '').strip()
+    email = (data.get('email') or '').strip()
+    service_name = (data.get('service') or 'consulta').strip()
+    appt_datetime_str = data.get('datetime', '').strip()
+
+    if not name:
+        return jsonify({'error': 'El nombre es obligatorio'}), 400
+    if not appt_datetime_str:
+        return jsonify({'error': 'La fecha y hora son obligatorias'}), 400
+
+    try:
+        appt_datetime = datetime.fromisoformat(appt_datetime_str)
+    except:
+        return jsonify({'error': 'Formato de fecha inválido'}), 400
+
+    # Find or create patient
+    patient = Patient.query.filter_by(phone=phone).first() if phone else None
+    if not patient:
+        patient = Patient.query.filter_by(email=email).first() if email else None
+    if not patient:
+        patient = Patient(name=name, phone=phone, email=email,
+                          source='web', status='nuevo',
+                          notes=f'Reserva vía web. Servicio: {service_name}')
+        db.session.add(patient)
+        db.session.flush()
+
+    # Create appointment
+    appt = Appointment(
+        patient_id=patient.id,
+        appt_datetime=appt_datetime,
+        duration_minutes=30,
+        appt_type=service_name,
+        notes=f'Reservado desde la web',
+        status='pendiente',
+    )
+    db.session.add(appt)
+
+    if patient.status == 'nuevo':
+        patient.status = 'agendado'
+
+    db.session.commit()
+
+    # Notify via Resend
+    try:
+        appt_date = appt_datetime.strftime('%d/%m/%Y')
+        appt_time = appt_datetime.strftime('%I:%M %p')
+        send_clinic_email(
+            f"🆕 Reserva web — {name}",
+            f"<h2>Nueva reserva desde la web</h2>"
+            f"<p><strong>Paciente:</strong> {name}<br>"
+            f"<strong>Teléfono:</strong> {phone or '—'}<br>"
+            f"<strong>Email:</strong> {email or '—'}<br>"
+            f"<strong>Servicio:</strong> {service_name}<br>"
+            f"<strong>Fecha:</strong> {appt_date}<br>"
+            f"<strong>Hora:</strong> {appt_time}</p>"
+            f"<p>Ingresa al CRM para confirmar la cita.</p>"
+        )
+    except Exception as e:
+        print(f"[Resend] notify error: {e}")
+
+    return jsonify({'success': True, 'appointment_id': appt.id}), 201
 
 # ============================================================
 # CONFIG
@@ -111,6 +248,11 @@ def tratamientos():
 @app.route('/recall')
 @login_required
 def recall():
+    return render_template('dashboard_clinica.html')
+
+@app.route('/servicios')
+@login_required
+def servicios():
     return render_template('dashboard_clinica.html')
 
 @app.route('/reportes')
@@ -322,6 +464,25 @@ def api_create_appointment():
         patient.status = 'agendado'
 
     db.session.commit()
+
+    # Notify — nueva cita agendada
+    try:
+        pt_name = patient.name if patient else 'Paciente'
+        appt_date = appt.appt_datetime.strftime('%d/%m/%Y')
+        appt_time = appt.appt_datetime.strftime('%I:%M %p')
+        send_clinic_email(
+            f"🆕 Nueva cita agendada — {pt_name}",
+            f"<h2>Nueva cita registrada</h2>"
+            f"<p><strong>Paciente:</strong> {pt_name}<br>"
+            f"<strong>Servicio:</strong> {appt.appt_type}<br>"
+            f"<strong>Fecha:</strong> {appt_date}<br>"
+            f"<strong>Hora:</strong> {appt_time}<br>"
+            f"<strong>Estado:</strong> Pendiente de confirmación</p>"
+            f"<p>Ingresa al CRM para confirmar o reprogramar.</p>"
+        )
+    except Exception as e:
+        print(f"[Resend] notify error: {e}")
+
     return jsonify({'appointment': appt.to_dict(), 'success': True}), 201
 
 @app.route('/api/appointments/<int:aid>', methods=['PUT'])
@@ -331,6 +492,7 @@ def api_update_appointment(aid):
     if not appt:
         return jsonify({'error': 'not found'}), 404
     data = request.get_json()
+    old_status = appt.status
     for field in ['appt_datetime', 'duration_minutes', 'appt_type', 'notes', 'status']:
         if field in data:
             if field == 'appt_datetime':
@@ -350,6 +512,41 @@ def api_update_appointment(aid):
         db.session.add(patient)
 
     db.session.commit()
+
+    # Notify — cita confirmada
+    if data.get('status') == 'confirmada' and old_status != 'confirmada':
+        try:
+            pt = appt.patient
+            pt_name = pt.name if pt else 'Paciente'
+            appt_date = appt.appt_datetime.strftime('%d/%m/%Y')
+            appt_time = appt.appt_datetime.strftime('%I:%M %p')
+            send_clinic_email(
+                f"✅ Cita confirmada — {pt_name}",
+                f"<h2>¡Cita confirmada!</h2>"
+                f"<p><strong>Paciente:</strong> {pt_name}<br>"
+                f"<strong>Servicio:</strong> {appt.appt_type}<br>"
+                f"<strong>Fecha:</strong> {appt_date}<br>"
+                f"<strong>Hora:</strong> {appt_time}</p>"
+                f"<p>✅ La cita ha sido confirmada.</p>"
+            )
+        except Exception as e:
+            print(f"[Resend] notify error: {e}")
+
+    # Notify — cita cancelada
+    if data.get('status') == 'cancelada' and old_status != 'cancelada':
+        try:
+            pt = appt.patient
+            pt_name = pt.name if pt else 'Paciente'
+            send_clinic_email(
+                f"❌ Cita cancelada — {pt_name}",
+                f"<h2>Cita cancelada</h2>"
+                f"<p><strong>Paciente:</strong> {pt_name}<br>"
+                f"<strong>Servicio:</strong> {appt.appt_type}</p>"
+                f"<p>La cita ha sido cancelada.</p>"
+            )
+        except Exception as e:
+            print(f"[Resend] notify error: {e}")
+
     return jsonify({'appointment': appt.to_dict(), 'success': True})
 
 # ============================================================
@@ -435,6 +632,58 @@ def api_patient_interactions(pid):
     interactions = PatientInteraction.query.filter_by(patient_id=pid)\
         .order_by(PatientInteraction.created_at.desc()).limit(limit).all()
     return jsonify({'interactions': [i.to_dict() for i in interactions]})
+
+
+# ============================================================
+# API — Services (admin CRUD)
+# ============================================================
+@app.route('/api/services', methods=['GET'])
+@login_required
+def api_get_services():
+    services = Service.query.order_by(Service.sort_order).all()
+    return jsonify({'services': [s.to_dict() for s in services]})
+
+@app.route('/api/services', methods=['POST'])
+@login_required
+def api_create_service():
+    data = request.get_json()
+    if not data or not data.get('name'):
+        return jsonify({'error': 'name is required'}), 400
+    service = Service(
+        name=data['name'].strip(),
+        description=(data.get('description') or '').strip(),
+        duration_minutes=int(data.get('duration_minutes', 30)),
+        price=float(data.get('price', 0.0)),
+        active=data.get('active', True),
+        sort_order=int(data.get('sort_order', 0)),
+    )
+    db.session.add(service)
+    db.session.commit()
+    return jsonify({'service': service.to_dict(), 'success': True}), 201
+
+@app.route('/api/services/<int:sid>', methods=['PUT'])
+@login_required
+def api_update_service(sid):
+    service = db.session.get(Service, sid)
+    if not service:
+        return jsonify({'error': 'not found'}), 404
+    data = request.get_json()
+    for field in ['name', 'description', 'duration_minutes', 'price', 'active', 'sort_order']:
+        if field in data:
+            setattr(service, field, data[field])
+    db.session.commit()
+    return jsonify({'service': service.to_dict(), 'success': True})
+
+@app.route('/api/services/<int:sid>', methods=['DELETE'])
+@login_required
+def api_delete_service(sid):
+    service = db.session.get(Service, sid)
+    if not service:
+        return jsonify({'error': 'not found'}), 404
+    db.session.delete(service)
+    db.session.commit()
+    return jsonify({'success': True})
+
 
 # ============================================================
 # API — Recall
