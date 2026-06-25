@@ -1332,6 +1332,55 @@ def api_chat():
         except:
             db.session.rollback()
         
+        # Detectar si el paciente confirmo la cita
+        try:
+            from models import Patient, Appointment, Doctor, BlockedSchedule
+            from datetime import datetime, date, timedelta
+            import re
+            
+            full_text = reply.lower() + ' ' + ' '.join([h.get('user','') + ' ' + h.get('bot','') for h in (data.get('history') or [])]).lower()
+            
+            # Buscar confirmacion: si el paciente dijo si/ok/vale Y Valentina dice "cita creada" o "agendada"
+            confirm = any(w in data['message'].lower() for w in ['si','ok','vale','confirmo','dale','de acuerdo','adelante','perfecto'])
+            registered = any(w in reply.lower() for w in ['cita creada','agendada','registrada','confirmada','te esperamos','quedo registrada'])
+            
+            if confirm and registered:
+                # Extraer datos
+                nm = re.search(r'(?:soy|me llamo|mi nombre es|nombre[\s:]*)\s*(?:el |la )?([A-Za-z\s]{3,40}?)(?:,|\.|$)', full_text, re.I)
+                pm = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', full_text)
+                dm = re.search(r'(\d{1,2})[\/](\d{1,2})', full_text)
+                tm = re.search(r'(\d{1,2}):(\d{2})', full_text)
+                
+                if nm and pm:
+                    name_val = nm.group(1).strip()
+                    phone_val = pm.group(1).strip()
+                    target_date = date.today() + timedelta(days=1)
+                    target_time = '09:00'
+                    
+                    if dm:
+                        try: target_date = date(date.today().year, int(dm.group(2)), int(dm.group(1)))
+                        except: pass
+                    if tm:
+                        target_time = f'{int(tm.group(1)):02d}:{tm.group(2)}'
+                    
+                    # Buscar paciente
+                    patient = Patient.query.filter_by(phone=phone_val).first()
+                    if not patient:
+                        patient = Patient(name=name_val, phone=phone_val, source='web_chat', status='nuevo')
+                        db.session.add(patient)
+                        db.session.flush()
+                    
+                    appt_dt = datetime.strptime(f'{target_date.isoformat()} {target_time}', '%Y-%m-%d %H:%M')
+                    appt = Appointment(patient_id=patient.id, doctor_id=1, appt_datetime=appt_dt, status='pendiente')
+                    db.session.add(appt)
+                    if patient.status == 'nuevo':
+                        patient.status = 'agendado'
+                    db.session.commit()
+                    print(f'[Booking] CREADA: {name_val} - {phone_val} - {target_date} {target_time}')
+        except Exception as e:
+            db.session.rollback()
+            print(f'[Booking] Error: {e}')
+        
         return jsonify({'response': reply, 'success': True})
     except Exception as e:
         print(f'[Chat API] Error: {e}')
