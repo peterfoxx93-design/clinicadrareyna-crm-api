@@ -236,7 +236,7 @@
 
         // Pipeline
         html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
-        html += pipelineCard('🆕', 'Nuevos', bs.nuevo || 0, '#4472C4', '/pacientes?status=nuevo');
+        html += pipelineCard('🆕', 'Nuevos', bs.nuevo || 0, '#4472C4', '/pacientes?hoy=true');
         html += pipelineCard('📅', 'Agendados', bs.agendado || 0, '#f59e0b', '/pacientes?status=agendado');
         html += pipelineCard('🔍', 'Diagnosticados', bs.diagnosticado || 0, '#8b5cf6', '/pacientes?status=diagnosticado');
         html += pipelineCard('🦷', 'En Tratamiento', bs.en_tratamiento || 0, '#f97316', '/pacientes?status=en_tratamiento');
