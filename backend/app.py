@@ -1214,7 +1214,17 @@ def api_chat():
                 db.session.rollback()
                 print(f'[Booking] Error: {e}')
         
-        return jsonify({'response': reply, 'success': True})
+        # Return with booking info
+        booking_id = None
+        if 'cita_match' in dir():
+            try:
+                booking_id = 1  # placeholder
+            except:
+                pass
+        result = {'response': reply, 'success': True}
+        if booking_id:
+            result['booking_created'] = True
+        return jsonify(result)
     except Exception as e:
         print(f'[Chat API] Error: {e}')
         return jsonify({'error': 'Error interno'}), 500
