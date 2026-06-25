@@ -1202,7 +1202,7 @@ def api_chat():
                         db.session.flush()
                     fecha = dm.group(1).strip() if dm else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
                     hora = hm.group(1).strip() if hm else '09:00'
-                    doctor = int(docm.group(1).strip()) if docm else 1
+                    doctor = int(''.join(filter(str.isdigit, docm.group(1).strip()))) if docm else 1
                     motivo = mm.group(1).strip() if mm else 'consulta'
                     appt_dt = datetime.strptime(f'{fecha} {hora}', '%Y-%m-%d %H:%M')
                     a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, status='pendiente', appt_type=motivo)
