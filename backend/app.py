@@ -465,8 +465,6 @@ def api_get_stats():
     for s in ['nuevo', 'agendado', 'diagnosticado', 'plan_aceptado',
               'en_tratamiento', 'completado', 'retorno', 'perdido']:
         by_status[s] = Patient.query.filter_by(status=s).count()
-    # Include today's new patients in 'nuevo' count
-    by_status['nuevo'] += Patient.query.filter(Patient.created_at >= today_start, Patient.status != 'nuevo').count()
 
     today_appts = Appointment.query.filter(
         Appointment.appt_datetime >= today_start,
