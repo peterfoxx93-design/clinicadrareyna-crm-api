@@ -536,6 +536,10 @@ def api_get_patients():
             Patient.next_recall.isnot(None),
             Patient.status != 'perdido'
         )
+    hoy = request.args.get('hoy', '').lower() == 'true'
+    if hoy:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        query = query.filter(Patient.created_at >= today_start)
 
     query = query.order_by(Patient.updated_at.desc())
     patients = query.all()
