@@ -111,6 +111,14 @@ CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
 
 init_db(app)
 
+# Migration: add interaction columns
+for col in ['ai_response', 'channel_id', 'source_phone']:
+    try:
+        db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
+        db.session.commit()
+    except:
+        db.session.rollback()
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
@@ -1123,6 +1131,24 @@ def api_chat():
         if not data or 'message' not in data:
             return jsonify({'error': 'Mensaje requerido'}), 400
         reply = call_ai(data['message'].strip(), data.get('history', []))
+        
+        # Auto-log interaction
+        try:
+            from models import PatientInteraction
+            log = PatientInteraction(
+                patient_id=0,
+                direction='in',
+                message=data['message'].strip(),
+                ai_response=reply,
+                channel='web',
+                channel_id=data.get('channel_id', ''),
+                source_phone=data.get('phone', ''),
+            )
+            db.session.add(log)
+            db.session.commit()
+        except:
+            db.session.rollback()
+        
         return jsonify({'response': reply, 'success': True})
     except Exception as e:
         print(f'[Chat API] Error: {e}')

@@ -209,7 +209,10 @@ class PatientInteraction(db.Model):
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
     direction = db.Column(db.String(10), default='in')
     message = db.Column(db.Text, default='')
+    ai_response = db.Column(db.Text, default='')
     channel = db.Column(db.String(50), default='whatsapp')
+    channel_id = db.Column(db.String(100), default='')
+    source_phone = db.Column(db.String(50), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -218,7 +221,10 @@ class PatientInteraction(db.Model):
             'patient_id': self.patient_id,
             'direction': self.direction,
             'message': self.message,
+            'ai_response': self.ai_response[:300] if self.ai_response else '',
             'channel': self.channel,
+            'channel_id': self.channel_id or '',
+            'source_phone': self.source_phone or '',
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }
 
