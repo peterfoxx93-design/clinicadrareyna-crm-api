@@ -1178,41 +1178,41 @@ def api_chat():
             db.session.rollback()
         
 
-        # Auto-create booking from JSON in response
-        import json, re as _re
-        json_match = _re.search(r'JSON:\s*(\{.+?\})', reply, _re.DOTALL)
-        if json_match:
+        # Auto-create booking from ---CITA--- markers
+        import re as _re
+        cita_match = _re.search(r'---CITA---(.*?)---FIN---', reply, _re.DOTALL)
+        if cita_match:
             try:
-                bd = json.loads(json_match.group(1))
+                texto = cita_match.group(1)
                 from models import Patient, Appointment
-                from datetime import datetime
-                name = bd.get('nombre', '').strip()
-                phone = bd.get('telefono', '').strip()
-                if name and phone:
+                from datetime import datetime, timedelta
+                nm = _re.search(r'Nombre:\s*(.+)', texto)
+                pm = _re.search(r'Telefono:\s*(.+)', texto)
+                dm = _re.search(r'Fecha:\s*(.+)', texto)
+                hm = _re.search(r'Hora:\s*(.+)', texto)
+                docm = _re.search(r'Doctor:\s*(.+)', texto)
+                mm = _re.search(r'Motivo:\s*(.+)', texto)
+                if nm and pm:
+                    name = nm.group(1).strip()
+                    phone = pm.group(1).strip()
                     p = Patient.query.filter_by(phone=phone).first()
                     if not p:
-                        email = bd.get('email', '')
-                        p = Patient(name=name, phone=phone, email=email, source='web_chat', status='nuevo', notes=bd.get('motivo',''))
+                        p = Patient(name=name, phone=phone, source='web_chat', status='nuevo')
                         db.session.add(p)
                         db.session.flush()
-                    try:
-                        appt_date = bd.get('fecha', '')
-                        appt_time = bd.get('hora', '09:00')
-                        if appt_date:
-                            appt_dt = datetime.strptime(f'{appt_date} {appt_time}', '%Y-%m-%d %H:%M')
-                        else:
-                            appt_dt = datetime.now().replace(hour=9, minute=0, second=0) + timedelta(days=1)
-                        doctor_id = bd.get('doctor_id', 1)
-                        a = Appointment(patient_id=p.id, doctor_id=doctor_id, appt_datetime=appt_dt, status='pendiente', appt_type=bd.get('motivo','consulta'))
-                        db.session.add(a)
-                        if p.status == 'nuevo': p.status = 'agendado'
-                        db.session.commit()
-                        print(f'[Booking] CREADA: {name} - {phone} - {appt_date} {appt_time}')
-                    except Exception as e:
-                        db.session.rollback()
-                        print(f'[Booking] Date error: {e}')
+                    fecha = dm.group(1).strip() if dm else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+                    hora = hm.group(1).strip() if hm else '09:00'
+                    doctor = int(docm.group(1).strip()) if docm else 1
+                    motivo = mm.group(1).strip() if mm else 'consulta'
+                    appt_dt = datetime.strptime(f'{fecha} {hora}', '%Y-%m-%d %H:%M')
+                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, status='pendiente', appt_type=motivo)
+                    db.session.add(a)
+                    if p.status == 'nuevo': p.status = 'agendado'
+                    db.session.commit()
+                    print(f'[Booking] CREADA: {name} - {phone}')
             except Exception as e:
-                print(f'[Booking] JSON error: {e}')
+                db.session.rollback()
+                print(f'[Booking] Error: {e}')
         
         return jsonify({'response': reply, 'success': True})
     except Exception as e:
