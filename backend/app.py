@@ -1185,7 +1185,7 @@ def api_chat():
             import re
             if any(w in data['message'].lower() for w in ['si','ok','vale','confirmo','dale','adelante','perfecto']) and any(w in reply.lower() for w in ['cita creada','agendada','registrada','confirmada','te esperamos','quedo registrada']):
                 full = reply.lower() + ' ' + ' '.join([h.get('user','') + ' ' + h.get('bot','') for h in (data.get('history') or [])]).lower()
-                nm = re.search(r'(?:soy|me llamo|mi nombre es|nombre[\s:]*)\s*(?:el |la )?([A-Za-z\s]{3,40}?)(?:,|\.|$)', full, re.I)
+                nm = re.search(r'(?:soy|me llamo|mi nombre es|nombre[\s:]*)\s*(?:el |la )?([A-Za-zÁÉÍÓÚáéíóúÑñ\s]{3,40}?)(?:,|\.|$)', full, re.I)
                 pm = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', full)
                 if nm and pm:
                     p = Patient.query.filter_by(phone=pm.group(1).strip()).first()
