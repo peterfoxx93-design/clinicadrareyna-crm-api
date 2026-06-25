@@ -1197,7 +1197,7 @@ def api_chat():
                     phone = pm.group(1).strip()
                     p = Patient.query.filter_by(phone=phone).first()
                     if not p:
-                        p = Patient(name=name, phone=phone, source='web_chat', status='nuevo')
+                        p = Patient(name=name, phone=phone, source='web_chat', status='nuevo', notes=motivo if motivo else '')
                         db.session.add(p)
                         db.session.flush()
                     fecha = dm.group(1).strip() if dm else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
