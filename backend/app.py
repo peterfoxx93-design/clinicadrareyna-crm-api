@@ -465,6 +465,8 @@ def api_get_stats():
     for s in ['nuevo', 'agendado', 'diagnosticado', 'plan_aceptado',
               'en_tratamiento', 'completado', 'retorno', 'perdido']:
         by_status[s] = Patient.query.filter_by(status=s).count()
+    # Include today's new patients in 'nuevo' count
+    by_status['nuevo'] += Patient.query.filter(Patient.created_at >= today_start, Patient.status != 'nuevo').count()
 
     today_appts = Appointment.query.filter(
         Appointment.appt_datetime >= today_start,
@@ -1205,6 +1207,10 @@ def api_chat():
                     fecha = dm.group(1).strip() if dm else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
                     hora = hm.group(1).strip() if hm else '09:00'
                     doctor = int(''.join(filter(str.isdigit, docm.group(1).strip()))) if docm else 1
+                    # Fix year if GPT outputs wrong year
+                    fecha_parts = fecha.split('-')
+                    if len(fecha_parts) == 3 and fecha_parts[0] != str(datetime.now().year):
+                        fecha = f"{datetime.now().year}-{fecha_parts[1]}-{fecha_parts[2]}"
                     appt_dt = datetime.strptime(f'{fecha} {hora}', '%Y-%m-%d %H:%M')
                     mm = _re.search(r'Motivo:\s*(.+)', texto)
                     motivo = mm.group(1).strip() if mm else 'consulta'
