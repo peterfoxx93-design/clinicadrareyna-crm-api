@@ -1181,6 +1181,7 @@ def api_chat():
         # Auto-create booking from ---CITA--- markers
         import re as _re
         cita_match = _re.search(r'---CITA---(.*?)---FIN---', reply, _re.DOTALL)
+        booking_result = None
         if cita_match:
             try:
                 texto = cita_match.group(1)
@@ -1191,7 +1192,6 @@ def api_chat():
                 dm = _re.search(r'Fecha:\s*(.+)', texto)
                 hm = _re.search(r'Hora:\s*(.+)', texto)
                 docm = _re.search(r'Doctor:\s*(.+)', texto)
-                mm = _re.search(r'Motivo:\s*(.+)', texto)
                 if nm and pm:
                     name = nm.group(1).strip()
                     phone = pm.group(1).strip()
@@ -1203,16 +1203,15 @@ def api_chat():
                     fecha = dm.group(1).strip() if dm else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
                     hora = hm.group(1).strip() if hm else '09:00'
                     doctor = int(''.join(filter(str.isdigit, docm.group(1).strip()))) if docm else 1
-                    motivo = mm.group(1).strip() if mm else 'consulta'
                     appt_dt = datetime.strptime(f'{fecha} {hora}', '%Y-%m-%d %H:%M')
-                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, status='pendiente', appt_type=motivo)
+                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, status='pendiente')
                     db.session.add(a)
                     if p.status == 'nuevo': p.status = 'agendado'
                     db.session.commit()
-                    print(f'[Booking] CREADA: {name} - {phone}')
+                    booking_result = f'OK: {name} {fecha} {hora}'
             except Exception as e:
                 db.session.rollback()
-                print(f'[Booking] Error: {e}')
+                booking_result = f'ERR: {e}'
         
         # Return with booking info
         booking_id = None
@@ -1221,7 +1220,7 @@ def api_chat():
                 booking_id = 1  # placeholder
             except:
                 pass
-        result = {'response': reply, 'success': True}
+        result = {'response': reply, 'success': True, 'booking': booking_result}
         if booking_id:
             result['booking_created'] = True
         return jsonify(result)
