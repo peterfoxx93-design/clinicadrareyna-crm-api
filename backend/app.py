@@ -786,7 +786,10 @@ def api_patient_interactions(pid):
             patient_id=pid,
             direction=data.get('direction', 'in'),
             message=data.get('message', ''),
+            ai_response=data.get('ai_response', ''),
             channel=data.get('channel', 'whatsapp'),
+            channel_id=data.get('channel_id', ''),
+            source_phone=data.get('source_phone', ''),
         )
         db.session.add(ix)
         db.session.commit()
