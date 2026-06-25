@@ -1192,6 +1192,8 @@ def api_chat():
                 dm = _re.search(r'Fecha:\s*(.+)', texto)
                 hm = _re.search(r'Hora:\s*(.+)', texto)
                 docm = _re.search(r'Doctor:\s*(.+)', texto)
+                mm = _re.search(r'Motivo:\s*(.+)', texto)
+                motivo = mm.group(1).strip() if mm else 'consulta'
                 if nm and pm:
                     name = nm.group(1).strip()
                     phone = pm.group(1).strip()
@@ -1206,7 +1208,7 @@ def api_chat():
                     appt_dt = datetime.strptime(f'{fecha} {hora}', '%Y-%m-%d %H:%M')
                     mm = _re.search(r'Motivo:\s*(.+)', texto)
                     motivo = mm.group(1).strip() if mm else 'consulta'
-                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, status='pendiente', appt_type=motivo, duration_minutes=30)
+                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, appt_type=motivo, duration_minutes=30, status='pendiente')
                     db.session.add(a)
                     if p.status == 'nuevo': p.status = 'agendado'
                     db.session.commit()
