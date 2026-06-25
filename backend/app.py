@@ -58,23 +58,21 @@ CHAT_MODEL = 'deepseek/deepseek-v4-flash'
 VALENTINA_SYSTEM_PROMPT = "Eres Valentina, asistente virtual de la Dra. Reyna Pimentel, odontóloga en Nagua, RD. Ayudas a pacientes a agendar citas. Respondes en español dominicano profesional y cálido. NUNCA digas que eres una IA. NUNCA menciones herramientas internas. Tus respuestas son concisas, máx 3 párrafos. La clínica está en C/ Amalio Alonzo #24, Nagua. Tel: (809) 584-7033."
 
 def call_ai(user_msg, history=None):
-    # Inject doctor and availability data
     try:
         from models import Doctor, Appointment, BlockedSchedule
         from datetime import date, timedelta
         doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.sort_order).all()
-        availability = ""
+        extra = ""
         if doctors:
-            availability += "\nDOCTORES DISPONIBLES:\n"
+            extra += "\nDOCTORES:\n"
             for d in doctors:
-                availability += f"- {d.name} (ID {d.id}): {d.specialty or 'Odontologia general'}\n"
+                extra += f"- ID {d.id}: {d.name} ({d.specialty or 'General'})\n"
             today = date.today()
-            availability += "\nHORARIOS DISPONIBLES (PROXIMOS 3 DIAS):\n"
-            days_n = ['lun','mar','mie','jue','vie','sab','dom']
+            extra += "\nDISPONIBILIDAD (3 DIAS):\n"
             for i in range(3):
                 day = today + timedelta(days=i)
                 if day.weekday() == 6: continue
-                availability += f"\n{days_n[day.weekday()]} {day.strftime('%d/%m')}:\n"
+                extra += f"\n{day.strftime('%A')} {day.strftime('%d/%m')}:\n"
                 for doc in doctors:
                     slots = [f'{h:02d}:{m:02d}' for h in range(8,17) for m in [0,30]]
                     if day.weekday() == 5: slots = [s for s in slots if int(s.split(':')[0]) < 13]
@@ -87,11 +85,11 @@ def call_ai(user_msg, history=None):
                         ast = a.appt_datetime.hour*60+a.appt_datetime.minute
                         aen = ast+(a.duration_minutes or 30)
                         slots = [s for s in slots if not (ast <= int(s.split(':')[0])*60+int(s.split(':')[1]) < aen)]
-                    availability += f"  {doc.name}: {', '.join(slots[:5]) if slots else 'Completo'}\n"
+                    extra += f"  {doc.name}: {', '.join(slots[:5]) if slots else 'Completo'}\n"
     except:
-        availability = ""
+        extra = ""
     
-    messages = [{'role': 'system', 'content': VALENTINA_SYSTEM_PROMPT + availability}]
+    messages = [{'role': 'system', 'content': VALENTINA_SYSTEM_PROMPT + extra}]
     if history:
         for h in history[-8:]:
             messages.append({'role': 'user', 'content': h.get('user','')})
@@ -115,6 +113,9 @@ def call_ai(user_msg, history=None):
 
 
 
+# Config
+BASE = os.path.dirname(os.path.dirname(__file__))
+FRONTEND = os.path.join(BASE, 'frontend')
 
 app = Flask(__name__,
             static_folder=FRONTEND,
@@ -150,6 +151,7 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
 # ============================================================
 # SEED SERVICES
 # ============================================================
@@ -809,7 +811,10 @@ def api_patient_interactions(pid):
             patient_id=pid,
             direction=data.get('direction', 'in'),
             message=data.get('message', ''),
+            ai_response=data.get('ai_response', ''),
             channel=data.get('channel', 'whatsapp'),
+            channel_id=data.get('channel_id', ''),
+            source_phone=data.get('source_phone', ''),
         )
         db.session.add(ix)
         db.session.commit()
@@ -1172,39 +1177,29 @@ def api_chat():
         except:
             db.session.rollback()
         
-        # Auto-create booking when patient confirms
+
+        # Auto-create booking
         try:
             from models import Patient, Appointment
             from datetime import datetime, date, timedelta
             import re
-            msg_lower = data['message'].strip().lower()
-            reply_lower = reply.lower()
-            full_text = reply_lower + ' ' + ' '.join([h.get('user','') + ' ' + h.get('bot','') for h in (data.get('history') or [])]).lower()
-            
-            if any(w in msg_lower for w in ['si','ok','vale','confirmo','dale','adelante','perfecto']) and any(w in reply_lower for w in ['cita creada','agendada','registrada','confirmada','te esperamos','quedo registrada']):
-                nm = re.search(r'(?:soy|me llamo|mi nombre es|nombre[\s:]*)\s*(?:el |la )?([A-Za-z\s]{3,40}?)(?:,|\.|$)', full_text, re.I)
-                pm = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', full_text)
+            if any(w in data['message'].lower() for w in ['si','ok','vale','confirmo','dale','adelante','perfecto']) and any(w in reply.lower() for w in ['cita creada','agendada','registrada','confirmada','te esperamos','quedo registrada']):
+                full = reply.lower() + ' ' + ' '.join([h.get('user','') + ' ' + h.get('bot','') for h in (data.get('history') or [])]).lower()
+                nm = re.search(r'(?:soy|me llamo|mi nombre es|nombre[\s:]*)\s*(?:el |la )?([A-Za-z\s]{3,40}?)(?:,|\.|$)', full, re.I)
+                pm = re.search(r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})', full)
                 if nm and pm:
-                    name = nm.group(1).strip()
-                    phone = pm.group(1).strip()
-                    patient = Patient.query.filter_by(phone=phone).first()
-                    if not patient:
-                        patient = Patient(name=name, phone=phone, source='web_chat', status='nuevo')
-                        db.session.add(patient)
+                    p = Patient.query.filter_by(phone=pm.group(1).strip()).first()
+                    if not p:
+                        p = Patient(name=nm.group(1).strip(), phone=pm.group(1).strip(), source='web_chat', status='nuevo')
+                        db.session.add(p)
                         db.session.flush()
-                    dm = re.search(r'(\d{1,2})[\/](\d{1,2})', full_text)
-                    target = date.today() + timedelta(days=1)
-                    if dm:
-                        try: target = date(date.today().year, int(dm.group(2)), int(dm.group(1)))
-                        except: pass
-                    appt = Appointment(patient_id=patient.id, appt_datetime=datetime(target.year, target.month, target.day, 9, 0), status='pendiente')
-                    db.session.add(appt)
-                    if patient.status == 'nuevo': patient.status = 'agendado'
+                    dt = datetime.now() + timedelta(days=1)
+                    a = Appointment(patient_id=p.id, appt_datetime=dt.replace(hour=9, minute=0, second=0), status='pendiente')
+                    db.session.add(a)
+                    if p.status == 'nuevo': p.status = 'agendado'
                     db.session.commit()
-                    print(f'[Booking] CREADA: {name} - {phone}')
-        except Exception as e:
-            db.session.rollback()
-            print(f'[Booking] Error: {e}')
+        except:
+            pass
         
         return jsonify({'response': reply, 'success': True})
     except Exception as e:
