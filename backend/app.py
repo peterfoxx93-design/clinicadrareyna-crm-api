@@ -1150,6 +1150,33 @@ def api_delete_blocked(bid):
 # API — Chat Web Widget (Valentina)
 # ============================================================
 
+
+@app.route('/api/availability', methods=['GET'])
+def api_availability():
+    from datetime import datetime, timedelta, date
+    from models import Doctor, BlockedSchedule, Appointment
+    days = request.args.get('days', 7, type=int)
+    doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.sort_order).all()
+    result = []
+    today = date.today()
+    for doc in doctors:
+        doc_data = doc.to_dict()
+        blocked = BlockedSchedule.query.filter_by(doctor_id=doc.id).all()
+        blocked_slots = []
+        for b in blocked:
+            blocked_slots.append({'day_of_week': b.day_of_week, 'start_time': b.start_time.strftime('%H:%M') if b.start_time else '', 'end_time': b.end_time.strftime('%H:%M') if b.end_time else ''})
+        doc_data['blocked_schedules'] = blocked_slots
+        appointments = []
+        for d in range(days):
+            day = today + timedelta(days=d)
+            count = Appointment.query.filter(Appointment.doctor_id == doc.id, db.func.date(Appointment.appt_datetime) == day).count()
+            appointments.append({'date': day.isoformat(), 'day_name': day.strftime('%A'), 'appointments_count': count})
+        doc_data['appointments'] = appointments
+        result.append(doc_data)
+    return jsonify({'doctors': result, 'success': True})
+
+
+
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
     try:
