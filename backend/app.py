@@ -111,8 +111,9 @@ CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
 
 init_db(app)
 
-# Migration: add interaction columns
-for col in ['ai_response', 'channel_id', 'source_phone']:
+# Migration: add interaction columns (inside app context)
+with app.app_context():
+    for col in ['ai_response', 'channel_id', 'source_phone']:
     try:
         db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
         db.session.commit()
