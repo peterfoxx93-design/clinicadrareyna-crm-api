@@ -503,6 +503,7 @@ def api_get_stats():
         'today_new': today_new,
         'by_status': by_status,
         'today_appointments': today_appts,
+        'total_appointments': Appointment.query.count(),
         'upcoming_appointments': upcoming,
         'recall_due': recall_due,
         'plans_pending': plans_pending,
