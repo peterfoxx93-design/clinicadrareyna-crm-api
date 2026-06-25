@@ -80,7 +80,81 @@ REGLAS:
 CLÍNICA: C/ Amalio Alonzo #24, Nagua. Tel: (809) 584-7033. Horario: Lun-Vie 8AM-5PM, Sáb 8AM-1PM"""
 
 def call_ai(user_msg, history=None):
-    messages = [{'role': 'system', 'content': VALENTINA_SYSTEM_PROMPT}]
+    from models import Doctor, Appointment, BlockedSchedule, Patient
+    from datetime import datetime, date, timedelta
+    
+    # Detect booking intent
+    lower = user_msg.lower()
+    booking_keywords = ['cita', 'agendar', 'reserva', 'consulta', 'quiere', 'necesito', 'quiero', 'limpieza', 'ortodoncia', 'brackets', 'periodoncia', 'encias', 'dolor', 'revision', 'evaluacion']
+    is_booking = any(kw in lower for kw in booking_keywords)
+    
+    # Build system prompt with context
+    context = VALENTINA_SYSTEM_PROMPT
+    
+    if is_booking:
+        # Inject doctor info
+        doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.sort_order).all()
+        if doctors:
+            context += "\n\n**DOCTORES DISPONIBLES (usa esta info para sugerir):**\n"
+            for d in doctors:
+                context += f"- {d.name} (ID: {d.id}): {d.specialty or 'Odontología general'}\n"
+                if d.bio:
+                    context += f"  {d.bio}\n"
+            
+            # Inject today's availability for next 5 days
+            context += "\n**DISPONIBILIDAD PRÓXIMOS DÍAS:**\n"
+            today = date.today()
+            for i in range(5):
+                day = today + timedelta(days=i)
+                day_name = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'][day.weekday()]
+                if day.weekday() == 6:
+                    continue
+                context += f"\n{day_name} {day.strftime('%d/%m')}:\n"
+                for doc in doctors:
+                    # Get blocked schedules
+                    blocked = BlockedSchedule.query.filter(
+                        BlockedSchedule.block_date == day,
+                        db.or_(BlockedSchedule.doctor_id == doc.id, BlockedSchedule.doctor_id.is_(None))
+                    ).all()
+                    blocked_set = set()
+                    for b in blocked:
+                        if not b.start_time and not b.end_time:
+                            blocked_set.update([f'{h:02d}:{m:02d}' for h in range(8,17) for m in [0,30]])
+                        elif b.start_time:
+                            bs = int(b.start_time.split(':')[0])*60 + int(b.start_time.split(':')[1])
+                            be = int(b.end_time.split(':')[0])*60 + int(b.end_time.split(':')[1]) if b.end_time else bs+30
+                            for s in [f'{h:02d}:{m:02d}' for h in range(8,17) for m in [0,30]]:
+                                sm = int(s.split(':')[0])*60 + int(s.split(':')[1])
+                                if bs <= sm < be:
+                                    blocked_set.add(s)
+                    
+                    # Get booked appointments
+                    booked = Appointment.query.filter(
+                        Appointment.doctor_id == doc.id,
+                        db.func.date(Appointment.appt_datetime) == day,
+                        Appointment.status.in_(['pendiente', 'confirmada'])
+                    ).all()
+                    for a in booked:
+                        astart = a.appt_datetime.hour*60 + a.appt_datetime.minute
+                        aend = astart + (a.duration_minutes or 30)
+                        for s in [f'{h:02d}:{m:02d}' for h in range(8,17) for m in [0,30]]:
+                            sm = int(s.split(':')[0])*60 + int(s.split(':')[1])
+                            if astart <= sm < aend:
+                                blocked_set.add(s)
+                    
+                    # Available slots
+                    all_slots = [f'{h:02d}:{m:02d}' for h in range(8,17) for m in [0,30]]
+                    if day.weekday() == 5:
+                        all_slots = [s for s in all_slots if int(s.split(':')[0]) < 13]
+                    available = [s for s in all_slots if s not in blocked_set]
+                    if available:
+                        context += f"  {doc.name}: {', '.join(available[:6])}\n"
+                    else:
+                        context += f"  {doc.name}: Sin disponibilidad\n"
+        
+        context += "\n**IMPORTANTE: Cuando el paciente acepte agendar, DEBES llamar a la función create_appointment.**"
+    
+    messages = [{'role': 'system', 'content': context}]
     if history:
         for h in history[-8:]:
             messages.append({'role': 'user', 'content': h.get('user', '')})
@@ -88,42 +162,22 @@ def call_ai(user_msg, history=None):
                 messages.append({'role': 'assistant', 'content': h['bot']})
     messages.append({'role': 'user', 'content': user_msg})
 
+    # Function definitions for create_appointment only
     tools = [{
         'type': 'function',
         'function': {
-            'name': 'get_doctors',
-            'description': 'Obtener lista de doctores disponibles con sus especialidades',
-            'parameters': {'type': 'object', 'properties': {}}
-        }
-    }, {
-        'type': 'function',
-        'function': {
-            'name': 'get_available_slots',
-            'description': 'Obtener horarios disponibles para un doctor en una fecha',
-            'parameters': {
-                'type': 'object',
-                'properties': {
-                    'doctor_id': {'type': 'integer', 'description': 'ID del doctor'},
-                    'date': {'type': 'string', 'description': 'Fecha en formato YYYY-MM-DD'}
-                },
-                'required': ['doctor_id', 'date']
-            }
-        }
-    }, {
-        'type': 'function',
-        'function': {
             'name': 'create_appointment',
-            'description': 'Crear una cita en el CRM con los datos del paciente',
+            'description': 'CREAR UNA CITA EN EL CRM. USA ESTA FUNCIÓN cuando el paciente confirme que quiere agendar.',
             'parameters': {
                 'type': 'object',
                 'properties': {
-                    'patient_name': {'type': 'string', 'description': 'Nombre completo del paciente'},
-                    'patient_phone': {'type': 'string', 'description': 'Teléfono del paciente'},
-                    'patient_email': {'type': 'string', 'description': 'Email del paciente (opcional, string vacío si no tiene)'},
-                    'doctor_id': {'type': 'integer', 'description': 'ID del doctor'},
-                    'appt_date': {'type': 'string', 'description': 'Fecha de la cita en formato YYYY-MM-DD'},
-                    'appt_time': {'type': 'string', 'description': 'Hora de la cita en formato HH:MM'},
-                    'reason': {'type': 'string', 'description': 'Motivo de la consulta'}
+                    'patient_name': {'type': 'string'},
+                    'patient_phone': {'type': 'string'},
+                    'patient_email': {'type': 'string'},
+                    'doctor_id': {'type': 'integer'},
+                    'appt_date': {'type': 'string'},
+                    'appt_time': {'type': 'string'},
+                    'reason': {'type': 'string'}
                 },
                 'required': ['patient_name', 'patient_phone', 'doctor_id', 'appt_date', 'appt_time']
             }
@@ -163,13 +217,7 @@ def call_ai(user_msg, history=None):
             except:
                 args = {}
             
-            if fn_name == 'get_doctors':
-                from models import Doctor
-                doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.sort_order).all()
-                result = json.dumps([{'id': d.id, 'name': d.name, 'specialty': d.specialty, 'bio': d.bio} for d in doctors])
-            elif fn_name == 'create_appointment':
-                from models import Patient, Appointment
-                from datetime import datetime
+            if fn_name == 'create_appointment':
                 try:
                     appt_dt = datetime.strptime(f"{args['appt_date']} {args['appt_time']}", '%Y-%m-%d %H:%M')
                     patient = Patient.query.filter_by(phone=args['patient_phone']).first()
@@ -195,74 +243,15 @@ def call_ai(user_msg, history=None):
                         patient.status = 'agendado'
                     db.session.commit()
                     result = json.dumps({
-                        'success': True,
-                        'appointment_id': appt.id,
-                        'patient_id': patient.id,
-                        'patient_name': patient.name,
-                        'date': args['appt_date'],
-                        'time': args['appt_time'],
-                        'message': f'Cita creada exitosamente para {patient.name} el {args["appt_date"]} a las {args["appt_time"]}'
+                        'success': True, 'appointment_id': appt.id, 'patient_id': patient.id,
+                        'patient_name': patient.name, 'date': args['appt_date'], 'time': args['appt_time']
                     })
                 except Exception as e:
                     db.session.rollback()
                     result = json.dumps({'error': str(e)})
-            elif fn_name == 'get_available_slots':
-                from datetime import datetime, date, timedelta
-                from models import Doctor, Appointment, BlockedSchedule
-                did = args.get('doctor_id')
-                date_str = args.get('date', '')
-                try:
-                    target = datetime.strptime(date_str, '%Y-%m-%d').date()
-                except:
-                    result = json.dumps({'error': 'Invalid date'})
-                    continue
-                
-                # Generate slots 8:00-17:00
-                slots = [f'{h:02d}:{m:02d}' for h in range(8, 17) for m in [0, 30]]
-                if target.weekday() == 5:  # Saturday
-                    slots = [s for s in slots if int(s.split(':')[0]) < 13]
-                elif target.weekday() == 6:  # Sunday
-                    slots = []
-                
-                # Check blocked schedules
-                blocked = BlockedSchedule.query.filter(
-                    BlockedSchedule.block_date == target,
-                    db.or_(BlockedSchedule.doctor_id == did, BlockedSchedule.doctor_id.is_(None))
-                ).all()
-                blocked_set = set()
-                for b in blocked:
-                    if not b.start_time or not b.end_time:
-                        blocked_set.update(slots)
-                    else:
-                        bs = int(b.start_time.split(':')[0])*60 + int(b.start_time.split(':')[1])
-                        be = int(b.end_time.split(':')[0])*60 + int(b.end_time.split(':')[1])
-                        for s in slots:
-                            sm = int(s.split(':')[0])*60 + int(s.split(':')[1])
-                            if bs <= sm < be:
-                                blocked_set.add(s)
-                
-                # Check existing appointments
-                booked = Appointment.query.filter(
-                    Appointment.doctor_id == did,
-                    db.func.date(Appointment.appt_datetime) == target,
-                    Appointment.status.in_(['pendiente', 'confirmada'])
-                ).all()
-                for a in booked:
-                    astart = a.appt_datetime.hour*60 + a.appt_datetime.minute
-                    aend = astart + (a.duration_minutes or 30)
-                    for s in slots:
-                        sm = int(s.split(':')[0])*60 + int(s.split(':')[1])
-                        if astart <= sm < aend:
-                            blocked_set.add(s)
-                
-                available = [s for s in slots if s not in blocked_set]
-                result = json.dumps({'available_slots': available, 'date': date_str})
-            else:
-                result = json.dumps({'error': 'Unknown function'})
             
             messages.append({'role': 'tool', 'tool_call_id': tc['id'], 'content': result})
         
-        # Second call with tool results
         resp2 = http_req.post(
             'https://openrouter.ai/api/v1/chat/completions',
             headers={
