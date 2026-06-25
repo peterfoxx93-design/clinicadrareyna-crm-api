@@ -1197,14 +1197,16 @@ def api_chat():
                     phone = pm.group(1).strip()
                     p = Patient.query.filter_by(phone=phone).first()
                     if not p:
-                        p = Patient(name=name, phone=phone, source='web_chat', status='nuevo', notes=motivo if motivo else '')
+                        p = Patient(name=name, phone=phone, source='web_chat', status='nuevo', notes=motivo)
                         db.session.add(p)
                         db.session.flush()
                     fecha = dm.group(1).strip() if dm else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
                     hora = hm.group(1).strip() if hm else '09:00'
                     doctor = int(''.join(filter(str.isdigit, docm.group(1).strip()))) if docm else 1
                     appt_dt = datetime.strptime(f'{fecha} {hora}', '%Y-%m-%d %H:%M')
-                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, status='pendiente')
+                    mm = _re.search(r'Motivo:\s*(.+)', texto)
+                    motivo = mm.group(1).strip() if mm else 'consulta'
+                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, status='pendiente', appt_type=motivo, duration_minutes=30)
                     db.session.add(a)
                     if p.status == 'nuevo': p.status = 'agendado'
                     db.session.commit()
