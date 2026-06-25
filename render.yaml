@@ -20,6 +20,8 @@ services:
         value: espartaco.rd@gmail.com
       - key: CORS_ORIGINS
         value: https://dra-reyna-pimentel.vercel.app
+      - key: OPENROUTER_API_KEY
+        sync: false
 
 databases:
   - name: clinica-crm-db
