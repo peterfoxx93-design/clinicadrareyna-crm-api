@@ -195,6 +195,7 @@ def call_ai(user_msg, history=None):
             'model': CHAT_MODEL,
             'messages': messages,
             'tools': tools,
+            'tool_choice': 'auto',
             'max_tokens': 800,
             'temperature': 0.7,
         },
