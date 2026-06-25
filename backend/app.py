@@ -115,6 +115,41 @@ def call_ai(user_msg, history=None):
 
 
 
+
+app = Flask(__name__,
+            static_folder=FRONTEND,
+            template_folder=FRONTEND)
+app.debug = False
+app.secret_key = os.environ.get('CLINICA_SECRET', 'reyna-pimentel-2026')
+
+# Database: Render provides DATABASE_URL (postgres://) — fix for SQLAlchemy
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db'))
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# CORS — permite que la landing page (Vercel) llame a la API
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'https://dra-reyna-pimentel.vercel.app,https://*.vercel.app')
+CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
+
+init_db(app)
+
+with app.app_context():
+    for col in ['ai_response', 'channel_id', 'source_phone']:
+        try:
+            db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
+            db.session.commit()
+        except:
+            db.session.rollback()
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
 # ============================================================
 # SEED SERVICES
 # ============================================================
