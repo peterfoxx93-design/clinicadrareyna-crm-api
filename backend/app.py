@@ -114,11 +114,11 @@ init_db(app)
 # Migration: add interaction columns (inside app context)
 with app.app_context():
     for col in ['ai_response', 'channel_id', 'source_phone']:
-    try:
-        db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
-        db.session.commit()
-    except:
-        db.session.rollback()
+        try:
+            db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
+            db.session.commit()
+        except:
+            db.session.rollback()
 
 login_manager = LoginManager()
 login_manager.init_app(app)
