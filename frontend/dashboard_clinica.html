@@ -230,13 +230,13 @@
         html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
         html += statCard('Pacientes', s.total_patients, '👥', 'bg-blue-50 text-blue-600', '/pacientes');
         html += statCard('Nuevos Hoy', s.today_new, '🆕', 'bg-green-50 text-green-600', '/pacientes?hoy=true');
-        html += statCard('Citas Hoy', s.today_appointments, '📅', 'bg-purple-50 text-purple-600', '/citas');
+        html += statCard('Citas', s.upcoming_appointments, '📅', 'bg-purple-50 text-purple-600', '/citas');
         html += statCard('Recall Pendiente', s.recall_due, '🔄', 'bg-cyan-50 text-cyan-600', '/recall');
         html += '</div>';
 
         // Pipeline
         html += '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
-        html += pipelineCard('🆕', 'Nuevos', bs.nuevo || 0, '#4472C4', '/pacientes?hoy=true');
+        html += pipelineCard('🆕', 'Nuevos', s.today_new || 0, '#4472C4', '/pacientes?hoy=true');
         html += pipelineCard('📅', 'Agendados', bs.agendado || 0, '#f59e0b', '/pacientes?status=agendado');
         html += pipelineCard('🔍', 'Diagnosticados', bs.diagnosticado || 0, '#8b5cf6', '/pacientes?status=diagnosticado');
         html += pipelineCard('🦷', 'En Tratamiento', bs.en_tratamiento || 0, '#f97316', '/pacientes?status=en_tratamiento');
@@ -252,7 +252,7 @@
             '</div></div>';
         html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Estado Pacientes</h3>';
         html += '<div class="space-y-2 text-sm">';
-        html += statusRow('🆕 Nuevos', bs.nuevo || 0, s.total_patients, '#4472C4');
+        html += statusRow('🆕 Nuevos', s.today_new || 0, s.total_patients, '#4472C4');
         html += statusRow('📅 Agendados', bs.agendado || 0, s.total_patients, '#f59e0b');
         html += statusRow('🦷 En Tratamiento', bs.en_tratamiento || 0, s.total_patients, '#f97316');
         html += statusRow('🎉 Completados', bs.completado || 0, s.total_patients, '#10b981');
