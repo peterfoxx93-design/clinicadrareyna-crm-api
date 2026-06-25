@@ -82,11 +82,34 @@ Datos de la clínica:
 def call_ai(user_msg, history=None):
     messages = [{'role': 'system', 'content': VALENTINA_SYSTEM_PROMPT}]
     if history:
-        for h in history[-6:]:
+        for h in history[-8:]:
             messages.append({'role': 'user', 'content': h.get('user', '')})
             if h.get('bot'):
                 messages.append({'role': 'assistant', 'content': h['bot']})
     messages.append({'role': 'user', 'content': user_msg})
+
+    tools = [{
+        'type': 'function',
+        'function': {
+            'name': 'get_doctors',
+            'description': 'Obtener lista de doctores disponibles con sus especialidades',
+            'parameters': {'type': 'object', 'properties': {}}
+        }
+    }, {
+        'type': 'function',
+        'function': {
+            'name': 'get_available_slots',
+            'description': 'Obtener horarios disponibles para un doctor en una fecha',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'doctor_id': {'type': 'integer', 'description': 'ID del doctor'},
+                    'date': {'type': 'string', 'description': 'Fecha en formato YYYY-MM-DD'}
+                },
+                'required': ['doctor_id', 'date']
+            }
+        }
+    }]
 
     resp = http_req.post(
         'https://openrouter.ai/api/v1/chat/completions',
@@ -98,55 +121,114 @@ def call_ai(user_msg, history=None):
         json={
             'model': CHAT_MODEL,
             'messages': messages,
-            'max_tokens': 500,
+            'tools': tools,
+            'max_tokens': 800,
             'temperature': 0.7,
         },
         timeout=30,
     )
     if resp.status_code != 200:
         raise Exception(f'AI API error: {resp.status_code}')
-    reply = resp.json()['choices'][0]['message']['content']
-    if 'mcp_' in reply or 'write_file' in reply:
-        reply = reply.split('mcp_')[0].strip() or 'Entendido. ¿En qué más puedo ayudarte?'
+    
+    data = resp.json()
+    choice = data['choices'][0]
+    msg = choice['message']
+    
+    if msg.get('tool_calls'):
+        messages.append(msg)
+        for tc in msg['tool_calls']:
+            fn = tc['function']
+            fn_name = fn['name']
+            try:
+                args = json.loads(fn['arguments'])
+            except:
+                args = {}
+            
+            if fn_name == 'get_doctors':
+                from models import Doctor
+                doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.sort_order).all()
+                result = json.dumps([{'id': d.id, 'name': d.name, 'specialty': d.specialty, 'bio': d.bio} for d in doctors])
+            elif fn_name == 'get_available_slots':
+                from datetime import datetime, date, timedelta
+                from models import Doctor, Appointment, BlockedSchedule
+                did = args.get('doctor_id')
+                date_str = args.get('date', '')
+                try:
+                    target = datetime.strptime(date_str, '%Y-%m-%d').date()
+                except:
+                    result = json.dumps({'error': 'Invalid date'})
+                    continue
+                
+                # Generate slots 8:00-17:00
+                slots = [f'{h:02d}:{m:02d}' for h in range(8, 17) for m in [0, 30]]
+                if target.weekday() == 5:  # Saturday
+                    slots = [s for s in slots if int(s.split(':')[0]) < 13]
+                elif target.weekday() == 6:  # Sunday
+                    slots = []
+                
+                # Check blocked schedules
+                blocked = BlockedSchedule.query.filter(
+                    BlockedSchedule.block_date == target,
+                    db.or_(BlockedSchedule.doctor_id == did, BlockedSchedule.doctor_id.is_(None))
+                ).all()
+                blocked_set = set()
+                for b in blocked:
+                    if not b.start_time or not b.end_time:
+                        blocked_set.update(slots)
+                    else:
+                        bs = int(b.start_time.split(':')[0])*60 + int(b.start_time.split(':')[1])
+                        be = int(b.end_time.split(':')[0])*60 + int(b.end_time.split(':')[1])
+                        for s in slots:
+                            sm = int(s.split(':')[0])*60 + int(s.split(':')[1])
+                            if bs <= sm < be:
+                                blocked_set.add(s)
+                
+                # Check existing appointments
+                booked = Appointment.query.filter(
+                    Appointment.doctor_id == did,
+                    db.func.date(Appointment.appt_datetime) == target,
+                    Appointment.status.in_(['pendiente', 'confirmada'])
+                ).all()
+                for a in booked:
+                    astart = a.appt_datetime.hour*60 + a.appt_datetime.minute
+                    aend = astart + (a.duration_minutes or 30)
+                    for s in slots:
+                        sm = int(s.split(':')[0])*60 + int(s.split(':')[1])
+                        if astart <= sm < aend:
+                            blocked_set.add(s)
+                
+                available = [s for s in slots if s not in blocked_set]
+                result = json.dumps({'available_slots': available, 'date': date_str})
+            else:
+                result = json.dumps({'error': 'Unknown function'})
+            
+            messages.append({'role': 'tool', 'tool_call_id': tc['id'], 'content': result})
+        
+        # Second call with tool results
+        resp2 = http_req.post(
+            'https://openrouter.ai/api/v1/chat/completions',
+            headers={
+                'Authorization': f'Bearer {OPENROUTER_KEY}',
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://dra-reyna-pimentel.vercel.app',
+            },
+            json={
+                'model': CHAT_MODEL,
+                'messages': messages,
+                'max_tokens': 500,
+                'temperature': 0.7,
+            },
+            timeout=30,
+        )
+        if resp2.status_code != 200:
+            raise Exception(f'AI API error: {resp2.status_code}')
+        reply = resp2.json()['choices'][0]['message']['content']
+    else:
+        reply = msg.get('content', '')
+    
+    if not reply:
+        reply = 'Entendido. ¿En qué más puedo ayudarte?'
     return reply
-
-# Config
-BASE = os.path.dirname(os.path.dirname(__file__))
-FRONTEND = os.path.join(BASE, 'frontend')
-
-app = Flask(__name__,
-            static_folder=FRONTEND,
-            template_folder=FRONTEND)
-app.debug = False
-app.secret_key = os.environ.get('CLINICA_SECRET', 'reyna-pimentel-2026')
-
-# Database: Render provides DATABASE_URL (postgres://) — fix for SQLAlchemy
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db'))
-if database_url and database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-# CORS — permite que la landing page (Vercel) llame a la API
-CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'https://dra-reyna-pimentel.vercel.app,https://*.vercel.app')
-CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
-
-init_db(app)
-
-# Migration: add interaction columns (inside app context)
-with app.app_context():
-    for col in ['ai_response', 'channel_id', 'source_phone']:
-        try:
-            db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
-            db.session.commit()
-        except:
-            db.session.rollback()
-
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-@login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
