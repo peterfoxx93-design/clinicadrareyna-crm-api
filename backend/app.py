@@ -109,6 +109,25 @@ def call_ai(user_msg, history=None):
                 'required': ['doctor_id', 'date']
             }
         }
+    }, {
+        'type': 'function',
+        'function': {
+            'name': 'create_appointment',
+            'description': 'Crear una cita en el CRM con los datos del paciente',
+            'parameters': {
+                'type': 'object',
+                'properties': {
+                    'patient_name': {'type': 'string', 'description': 'Nombre completo del paciente'},
+                    'patient_phone': {'type': 'string', 'description': 'Teléfono del paciente'},
+                    'patient_email': {'type': 'string', 'description': 'Email del paciente (opcional, string vacío si no tiene)'},
+                    'doctor_id': {'type': 'integer', 'description': 'ID del doctor'},
+                    'appt_date': {'type': 'string', 'description': 'Fecha de la cita en formato YYYY-MM-DD'},
+                    'appt_time': {'type': 'string', 'description': 'Hora de la cita en formato HH:MM'},
+                    'reason': {'type': 'string', 'description': 'Motivo de la consulta'}
+                },
+                'required': ['patient_name', 'patient_phone', 'doctor_id', 'appt_date', 'appt_time']
+            }
+        }
     }]
 
     resp = http_req.post(
@@ -148,6 +167,45 @@ def call_ai(user_msg, history=None):
                 from models import Doctor
                 doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.sort_order).all()
                 result = json.dumps([{'id': d.id, 'name': d.name, 'specialty': d.specialty, 'bio': d.bio} for d in doctors])
+            elif fn_name == 'create_appointment':
+                from models import Patient, Appointment
+                from datetime import datetime
+                try:
+                    appt_dt = datetime.strptime(f"{args['appt_date']} {args['appt_time']}", '%Y-%m-%d %H:%M')
+                    patient = Patient.query.filter_by(phone=args['patient_phone']).first()
+                    if not patient:
+                        patient = Patient(
+                            name=args['patient_name'],
+                            phone=args['patient_phone'],
+                            email=args.get('patient_email', ''),
+                            source='web_chat', status='nuevo',
+                            notes=args.get('reason', ''),
+                        )
+                        db.session.add(patient)
+                        db.session.flush()
+                    appt = Appointment(
+                        patient_id=patient.id,
+                        doctor_id=args['doctor_id'],
+                        appt_datetime=appt_dt,
+                        appt_type=args.get('reason', 'consulta'),
+                        status='pendiente',
+                    )
+                    db.session.add(appt)
+                    if patient.status == 'nuevo':
+                        patient.status = 'agendado'
+                    db.session.commit()
+                    result = json.dumps({
+                        'success': True,
+                        'appointment_id': appt.id,
+                        'patient_id': patient.id,
+                        'patient_name': patient.name,
+                        'date': args['appt_date'],
+                        'time': args['appt_time'],
+                        'message': f'Cita creada exitosamente para {patient.name} el {args["appt_date"]} a las {args["appt_time"]}'
+                    })
+                except Exception as e:
+                    db.session.rollback()
+                    result = json.dumps({'error': str(e)})
             elif fn_name == 'get_available_slots':
                 from datetime import datetime, date, timedelta
                 from models import Doctor, Appointment, BlockedSchedule
