@@ -10,6 +10,7 @@ from flask_login import (LoginManager, login_user, logout_user,
                           login_required, current_user)
 from flask_cors import CORS
 from sqlalchemy import func
+import requests as http_req
 
 import resend
 
@@ -33,6 +34,59 @@ def send_clinic_email(subject, html_body):
         })
     except Exception as e:
         print(f"[Resend] Error sending email: {e}")
+
+# ============================================================
+# Chat AI Config — Valentina (Clínica Dental)
+# ============================================================
+OPENROUTER_KEY = ''
+for key_name in ['OPENROUTER_API_KEY_1', 'OPENROUTER_API_KEY_2', 'OPENROUTER_API_KEY']:
+    val = os.environ.get(key_name, '')
+    if val:
+        OPENROUTER_KEY = val
+        break
+if not OPENROUTER_KEY:
+    try:
+        with open(os.path.expanduser('~/.env')) as f:
+            for line in f:
+                if 'OPENROUTER_API_KEY' in line and '=' in line:
+                    OPENROUTER_KEY = line.split('=', 1)[1].strip().strip("'\"")
+                    break
+    except:
+        pass
+
+CHAT_MODEL = 'deepseek/deepseek-v4-flash'
+VALENTINA_SYSTEM_PROMPT = "Eres Valentina, asistente virtual de la Dra. Reyna Pimentel, odontóloga en Nagua, RD. Ayudas a pacientes a agendar citas. Respondes en español dominicano profesional y cálido. NUNCA digas que eres una IA. NUNCA menciones herramientas internas. Tus respuestas son concisas, máx 3 párrafos. La clínica está en C/ Amalio Alonzo #24, Nagua. Tel: (809) 584-7033."
+
+def call_ai(user_msg, history=None):
+    messages = [{'role': 'system', 'content': VALENTINA_SYSTEM_PROMPT}]
+    if history:
+        for h in history[-6:]:
+            messages.append({'role': 'user', 'content': h.get('user', '')})
+            if h.get('bot'):
+                messages.append({'role': 'assistant', 'content': h['bot']})
+    messages.append({'role': 'user', 'content': user_msg})
+
+    resp = http_req.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        headers={
+            'Authorization': f'Bearer {OPENROUTER_KEY}',
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://dra-reyna-pimentel.vercel.app',
+        },
+        json={
+            'model': CHAT_MODEL,
+            'messages': messages,
+            'max_tokens': 500,
+            'temperature': 0.7,
+        },
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise Exception(f'AI API error: {resp.status_code}')
+    reply = resp.json()['choices'][0]['message']['content']
+    if 'mcp_' in reply or 'write_file' in reply:
+        reply = reply.split('mcp_')[0].strip() or 'Entendido. ¿En qué más puedo ayudarte?'
+    return reply
 
 # Config
 BASE = os.path.dirname(os.path.dirname(__file__))
@@ -1057,6 +1111,22 @@ def api_delete_blocked(bid):
     db.session.delete(blocked)
     db.session.commit()
     return jsonify({'success': True})
+
+# ============================================================
+# API — Chat Web Widget (Valentina)
+# ============================================================
+
+@app.route('/api/chat', methods=['POST'])
+def api_chat():
+    try:
+        data = request.get_json()
+        if not data or 'message' not in data:
+            return jsonify({'error': 'Mensaje requerido'}), 400
+        reply = call_ai(data['message'].strip(), data.get('history', []))
+        return jsonify({'response': reply, 'success': True})
+    except Exception as e:
+        print(f'[Chat API] Error: {e}')
+        return jsonify({'error': 'Error interno'}), 500
 
 # ============================================================
 # Static files
