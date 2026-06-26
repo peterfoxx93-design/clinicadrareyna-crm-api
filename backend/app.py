@@ -67,7 +67,7 @@ def call_ai(user_msg, history=None):
             extra += "\nDOCTORES:\n"
             for d in doctors:
                 extra += f"- ID {d.id}: {d.name} ({d.specialty or 'General'})\n"
-            today = date.today()
+            today = rd_today()
             extra += "\nDISPONIBILIDAD (3 DIAS):\n"
             for i in range(3):
                 day = today + timedelta(days=i)
@@ -290,7 +290,7 @@ def api_public_availability():
         return jsonify({'error': 'Invalid date format (use YYYY-MM-DD)'}), 400
 
     # Check if date is in the past
-    if target_date < date.today():
+    if target_date < rd_today():
         return jsonify({'slots': []})
 
     # Check if it's weekend (Sunday=6)
