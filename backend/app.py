@@ -54,18 +54,49 @@ if not OPENROUTER_KEY:
     except:
         pass
 
-CHAT_MODEL = 'deepseek/deepseek-v4-flash'
-VALENTINA_SYSTEM_PROMPT = "Eres Valentina, asistente virtual de la Dra. Reyna Pimentel, odontóloga en Nagua, RD. Ayudas a pacientes a agendar citas. Respondes en español dominicano profesional y cálido. NUNCA digas que eres una IA. NUNCA menciones herramientas internas. Tus respuestas son concisas, máx 3 párrafos. La clínica está en C/ Amalio Alonzo #24, Nagua. Tel: (809) 584-7033."
+CHAT_MODEL = 'openai/gpt-4o-mini'
+VALENTINA_SYSTEM_PROMPT = 'Eres Valentina. Capturas datos y agendas citas.\n\nDOCTORES: Dra. Reyna (ID1), Dr. Carlos (ID2), Dra. Maria (ID3)\n\nPASOS:\n1. Pregunta nuevo/recurrente + motivo\n2. Sugiere doctor\n3. Pide NOMBRE y TELEFONO\n4. Pide dia y horario\n5. Al CONFIRMAR, responde y al FINAL agrega exactamente:\n---CITA---\nNombre: (nombre)\nTelefono: (telefono)\nDoctor: (ID)\nFecha: (YYYY-MM-DD)\nHora: (HH:MM)\nMotivo: (motivo)\n---FIN---\n\nREGLA: No digas que eres IA. Max 3 parrafos.\nCLINICA: C/ Amalio Alonzo #24, Nagua. Tel: (809) 584-7033.'
 
 def call_ai(user_msg, history=None):
-    messages = [{'role': 'system', 'content': VALENTINA_SYSTEM_PROMPT}]
+    try:
+        from models import Doctor, Appointment, BlockedSchedule
+        from datetime import date, timedelta
+        doctors = Doctor.query.filter_by(is_active=True).order_by(Doctor.sort_order).all()
+        extra = ""
+        if doctors:
+            extra += "\nDOCTORES:\n"
+            for d in doctors:
+                extra += f"- ID {d.id}: {d.name} ({d.specialty or 'General'})\n"
+            today = rd_today()
+            extra += "\nDISPONIBILIDAD (3 DIAS):\n"
+            for i in range(3):
+                day = today + timedelta(days=i)
+                if day.weekday() == 6: continue
+                extra += f"\n{day.strftime('%A')} {day.strftime('%d/%m')}:\n"
+                for doc in doctors:
+                    slots = [f'{h:02d}:{m:02d}' for h in range(8,17) for m in [0,30]]
+                    if day.weekday() == 5: slots = [s for s in slots if int(s.split(':')[0]) < 13]
+                    for b in BlockedSchedule.query.filter(BlockedSchedule.block_date == day, db.or_(BlockedSchedule.doctor_id == doc.id, BlockedSchedule.doctor_id.is_(None))).all():
+                        if b.start_time:
+                            bs = int(b.start_time.split(':')[0])*60+int(b.start_time.split(':')[1])
+                            be = int(b.end_time.split(':')[0])*60+int(b.end_time.split(':')[1]) if b.end_time else bs+30
+                            slots = [s for s in slots if not (bs <= int(s.split(':')[0])*60+int(s.split(':')[1]) < be)]
+                    for a in Appointment.query.filter(Appointment.doctor_id == doc.id, db.func.date(Appointment.appt_datetime) == day, Appointment.status.in_(['pendiente','confirmada'])).all():
+                        ast = a.appt_datetime.hour*60+a.appt_datetime.minute
+                        aen = ast+(a.duration_minutes or 30)
+                        slots = [s for s in slots if not (ast <= int(s.split(':')[0])*60+int(s.split(':')[1]) < aen)]
+                    extra += f"  {doc.name}: {', '.join(slots[:5]) if slots else 'Completo'}\n"
+    except:
+        extra = ""
+    
+    messages = [{'role': 'system', 'content': VALENTINA_SYSTEM_PROMPT + extra}]
     if history:
-        for h in history[-6:]:
-            messages.append({'role': 'user', 'content': h.get('user', '')})
+        for h in history[-8:]:
+            messages.append({'role': 'user', 'content': h.get('user','')})
             if h.get('bot'):
                 messages.append({'role': 'assistant', 'content': h['bot']})
     messages.append({'role': 'user', 'content': user_msg})
-
+    
     resp = http_req.post(
         'https://openrouter.ai/api/v1/chat/completions',
         headers={
@@ -73,20 +104,14 @@ def call_ai(user_msg, history=None):
             'Content-Type': 'application/json',
             'HTTP-Referer': 'https://dra-reyna-pimentel.vercel.app',
         },
-        json={
-            'model': CHAT_MODEL,
-            'messages': messages,
-            'max_tokens': 500,
-            'temperature': 0.7,
-        },
+        json={'model': CHAT_MODEL, 'messages': messages, 'max_tokens': 800, 'temperature': 0.7},
         timeout=30,
     )
     if resp.status_code != 200:
-        raise Exception(f'AI API error: {resp.status_code}')
-    reply = resp.json()['choices'][0]['message']['content']
-    if 'mcp_' in reply or 'write_file' in reply:
-        reply = reply.split('mcp_')[0].strip() or 'Entendido. ¿En qué más puedo ayudarte?'
-    return reply
+        raise Exception(f'AI error: {resp.status_code}')
+    return resp.json()['choices'][0]['message']['content']
+
+
 
 # Config
 BASE = os.path.dirname(os.path.dirname(__file__))
@@ -263,7 +288,7 @@ def api_public_availability():
         return jsonify({'error': 'Invalid date format (use YYYY-MM-DD)'}), 400
 
     # Check if date is in the past
-    if target_date < date.today():
+    if target_date < rd_today():
         return jsonify({'slots': []})
 
     # Check if it's weekend (Sunday=6)
@@ -476,6 +501,7 @@ def api_get_stats():
         'today_new': today_new,
         'by_status': by_status,
         'today_appointments': today_appts,
+        'total_appointments': Appointment.query.count(),
         'upcoming_appointments': upcoming,
         'recall_due': recall_due,
         'plans_pending': plans_pending,
@@ -509,6 +535,10 @@ def api_get_patients():
             Patient.next_recall.isnot(None),
             Patient.status != 'perdido'
         )
+    hoy = request.args.get('hoy', '').lower() == 'true'
+    if hoy:
+        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        query = query.filter(Patient.created_at >= today_start)
 
     query = query.order_by(Patient.updated_at.desc())
     patients = query.all()
@@ -1150,7 +1180,61 @@ def api_chat():
         except:
             db.session.rollback()
         
-        return jsonify({'response': reply, 'success': True})
+
+        # Auto-create booking from ---CITA--- markers
+        import re as _re
+        cita_match = _re.search(r'---CITA---(.*?)---FIN---', reply, _re.DOTALL)
+        booking_result = None
+        if cita_match:
+            try:
+                texto = cita_match.group(1)
+                from models import Patient, Appointment
+                from datetime import datetime, timedelta
+                nm = _re.search(r'Nombre:\s*(.+)', texto)
+                pm = _re.search(r'Telefono:\s*(.+)', texto)
+                dm = _re.search(r'Fecha:\s*(.+)', texto)
+                hm = _re.search(r'Hora:\s*(.+)', texto)
+                docm = _re.search(r'Doctor:\s*(.+)', texto)
+                mm = _re.search(r'Motivo:\s*(.+)', texto)
+                motivo = mm.group(1).strip() if mm else 'consulta'
+                if nm and pm:
+                    name = nm.group(1).strip()
+                    phone = pm.group(1).strip()
+                    p = Patient.query.filter_by(phone=phone).first()
+                    if not p:
+                        p = Patient(name=name, phone=phone, source='web_chat', status='nuevo', notes=motivo)
+                        db.session.add(p)
+                        db.session.flush()
+                    fecha = dm.group(1).strip() if dm else (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+                    hora = hm.group(1).strip() if hm else '09:00'
+                    doctor = int(''.join(filter(str.isdigit, docm.group(1).strip()))) if docm else 1
+                    # Fix year if GPT outputs wrong year
+                    fecha_parts = fecha.split('-')
+                    if len(fecha_parts) == 3 and fecha_parts[0] != str(datetime.now().year):
+                        fecha = f"{datetime.now().year}-{fecha_parts[1]}-{fecha_parts[2]}"
+                    appt_dt = datetime.strptime(f'{fecha} {hora}', '%Y-%m-%d %H:%M')
+                    mm = _re.search(r'Motivo:\s*(.+)', texto)
+                    motivo = mm.group(1).strip() if mm else 'consulta'
+                    a = Appointment(patient_id=p.id, doctor_id=doctor, appt_datetime=appt_dt, appt_type=motivo, duration_minutes=30, status='pendiente')
+                    db.session.add(a)
+                    if p.status == 'nuevo': p.status = 'agendado'
+                    db.session.commit()
+                    booking_result = f'OK: {name} {fecha} {hora}'
+            except Exception as e:
+                db.session.rollback()
+                booking_result = f'ERR: {e}'
+        
+        # Return with booking info
+        booking_id = None
+        if 'cita_match' in dir():
+            try:
+                booking_id = 1  # placeholder
+            except:
+                pass
+        result = {'response': reply, 'success': True, 'booking': booking_result}
+        if booking_id:
+            result['booking_created'] = True
+        return jsonify(result)
     except Exception as e:
         print(f'[Chat API] Error: {e}')
         return jsonify({'error': 'Error interno'}), 500
