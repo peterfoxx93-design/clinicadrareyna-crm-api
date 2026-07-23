@@ -98,10 +98,8 @@ app = Flask(__name__,
 app.debug = False
 app.secret_key = os.environ.get('CLINICA_SECRET', 'reyna-pimentel-2026')
 
-# Database: Render provides DATABASE_URL (postgres://) — fix for SQLAlchemy
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db'))
-if database_url and database_url.startswith('postgres://'):
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+# Database: local SQLite by default to avoid Render DB dependency
+database_url = 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -111,13 +109,13 @@ CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
 
 init_db(app)
 
-# Migration: add interaction columns
-for col in ['ai_response', 'channel_id', 'source_phone']:
-    try:
-        db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
-        db.session.commit()
-    except:
-        db.session.rollback()
+with app.app_context():
+    for col in ['ai_response', 'channel_id', 'source_phone']:
+        try:
+            db.session.execute(db.text('ALTER TABLE patient_interactions ADD COLUMN ' + col + ' TEXT DEFAULT \'\''))
+            db.session.commit()
+        except:
+            db.session.rollback()
 
 login_manager = LoginManager()
 login_manager.init_app(app)

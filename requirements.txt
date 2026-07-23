@@ -6,4 +6,3 @@ werkzeug>=3.0
 sqlalchemy>=2.0
 resend>=0.8
 gunicorn>=21.2
-psycopg2-binary>=2.9
