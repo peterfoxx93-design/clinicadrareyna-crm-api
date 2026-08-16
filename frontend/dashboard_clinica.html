@@ -981,9 +981,9 @@
 
     function odontoArcHTML(rows) {
         var html = '';
-        for (var r = 0; r < rows.length; r++) {
-            var row = rows[r];
-            var left = row[0], right = row[1];
+        for (var r = 0; r < rows.length; r += 2) {
+            var left = rows[r] || [];
+            var right = (r + 1 < rows.length) ? (rows[r + 1] || []) : [];
             html += '<div class="odonto-row">';
             for (var i = 0; i < left.length; i++) html += odontoToothHTML(left[i], odontoData.teethMap[left[i]]);
             html += '<div class="odonto-mid">∣</div>';
