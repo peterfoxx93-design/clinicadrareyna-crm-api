@@ -34,12 +34,22 @@
         ::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: 8px; }
         .card { background: var(--card); border-radius: var(--radius-md); box-shadow: var(--shadow-1); border: 1px solid var(--border); }
         .card-shadow { box-shadow: 0px 4px 12px rgba(0,0,0,0.05); }
-        /* Metric cards animadas — clickeables, blancas, se colorean al pasar el mouse encima */
-        .metric-card { transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, border-color 0.25s ease; cursor: pointer; display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid var(--outline-variant); }
-        .metric-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(25,118,210,0.28); background: linear-gradient(135deg, #dbe9ff, #c0dbff); border-color: #1976d2; }
+        /* Metric cards — azul agresivo: gradiente sólido permanente, texto blanco */
+        .metric-card { transition: transform 0.25s ease, box-shadow 0.25s ease, filter 0.25s ease; cursor: pointer; display: block; text-decoration: none; color: #fff; background: linear-gradient(135deg, #2196f3 0%, #1565c0 100%); border: 1px solid rgba(255,255,255,0.15); }
+        .metric-card:hover { transform: translateY(-5px); box-shadow: 0 18px 40px rgba(21,101,192,0.45); background: linear-gradient(135deg, #1e88e5 0%, #0d47a1 100%); filter: brightness(1.05); }
+        .metric-card .metric-icon { background: rgba(255,255,255,0.22); color: #fff; }
+        .metric-card.alert-card { background: linear-gradient(135deg, #e53935 0%, #b71c1c 100%); border-color: rgba(255,255,255,0.18); }
+        .metric-card.alert-card:hover { box-shadow: 0 18px 40px rgba(183,28,28,0.45); background: linear-gradient(135deg, #d32f2f 0%, #8e0000 100%); }
         .metric-icon { transition: transform 0.25s ease; }
         .metric-card:hover .metric-icon { transform: scale(1.18) rotate(-6deg); }
         .stat-num { display: inline-block; }
+        /* Paneles del dashboard — entrada escalonada + elevación en hover */
+        .panel-card { transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease; animation: panelIn 0.55s cubic-bezier(0.22,1,0.36,1) both; }
+        .panel-card:hover { transform: translateY(-4px); box-shadow: 0 16px 32px rgba(25,118,210,0.18); border-color: var(--primary-soft); }
+        @keyframes panelIn { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+        .d1 { animation-delay: 0.05s; } .d2 { animation-delay: 0.18s; } .d3 { animation-delay: 0.32s; } .d4 { animation-delay: 0.46s; }
+        .patient-row { transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease; border-radius: 10px; padding: 8px 10px; margin: 0 -10px; }
+        .patient-row:hover { transform: translateX(5px); background: #f0f7ff; }
         .card-hover { cursor: pointer; background: var(--card); border-radius: var(--radius-md); box-shadow: var(--shadow-1); border: 1px solid var(--border); transition: all 0.25s; display: block; text-decoration: none; color: inherit; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--primary-soft); }
         .btn { transition: all 0.15s; }
@@ -333,38 +343,38 @@
         // Card 1 — Total Pacientes → /pacientes
         html += '<a href="/pacientes" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
-        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Total Pacientes</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>';
+        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:rgba(255,255,255,0.85)">Total Pacientes</span>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>';
         html += '</div>';
-        html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)"><span class="stat-num" data-target="' + (s.total_patients || 0) + '">0</span></div>';
-        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--success)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span>' + (s.today_new || 0) + ' nuevos hoy</span></div></div></a>';
+        html += '<div><div class="text-2xl font-semibold" style="color:#fff"><span class="stat-num" data-target="' + (s.total_patients || 0) + '">0</span></div>';
+        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:rgba(255,255,255,0.8)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span>' + (s.today_new || 0) + ' nuevos hoy</span></div></div></a>';
 
         // Card 2 — Citas Hoy → /citas (blanca como las demás; se ilumina en hover)
         html += '<a href="/citas" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
-        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Citas Hoy</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>';
+        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:rgba(255,255,255,0.85)">Citas Hoy</span>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>';
         html += '</div>';
-        html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)"><span class="stat-num" data-target="' + (s.today_appointments || 0) + '">0</span></div>';
-        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--on-variant)"><span>' + (s.upcoming_appointments || 0) + ' próximas agendadas</span></div></div></a>';
+        html += '<div><div class="text-2xl font-semibold" style="color:#fff"><span class="stat-num" data-target="' + (s.today_appointments || 0) + '">0</span></div>';
+        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:rgba(255,255,255,0.8)"><span>' + (s.upcoming_appointments || 0) + ' próximas agendadas</span></div></div></a>';
 
         // Card 3 — Ingresos del Mes → /finanzas
         html += '<a href="/finanzas" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
-        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Ingresos del Mes</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>';
+        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:rgba(255,255,255,0.85)">Ingresos del Mes</span>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>';
         html += '</div>';
-        html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)">$<span class="stat-num" data-target="' + (s.month_revenue || 0) + '">0</span></div>';
-        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--on-variant)"><span>' + (s.active_treatments || 0) + ' tratamientos activos</span></div></div></a>';
+        html += '<div><div class="text-2xl font-semibold" style="color:#fff">$<span class="stat-num" data-target="' + (s.month_revenue || 0) + '">0</span></div>';
+        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:rgba(255,255,255,0.8)"><span>' + (s.active_treatments || 0) + ' tratamientos activos</span></div></div></a>';
 
         // Card 4 — Recall Pendiente → /recall
-        html += '<a href="/recall" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
+        html += '<a href="/recall" class="metric-card alert-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
-        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Recall Pendiente</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--error);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>';
+        html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:rgba(255,255,255,0.9)">Recall Pendiente</span>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>';
         html += '</div>';
-        html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)"><span class="stat-num" data-target="' + (s.recall_due || 0) + '">0</span></div>';
-        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--error)"><span>Requiere atención</span></div></div></a>';
+        html += '<div><div class="text-2xl font-semibold" style="color:#fff"><span class="stat-num" data-target="' + (s.recall_due || 0) + '">0</span></div>';
+        html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:rgba(255,255,255,0.85)"><span>Requiere atención</span></div></div></a>';
 
         html += '</div>';
 
@@ -373,7 +383,7 @@
 
         // Left: Próximas Citas
         html += '<div class="lg:col-span-2 flex flex-col space-y-6">';
-        html += '<div class="flex-1 rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="flex-1 rounded-xl p-6 card-shadow border panel-card d1" style="background:#fff;border-color:var(--outline-variant)">';
         html += '<div class="flex justify-between items-center mb-6"><h3 class="text-lg font-semibold" style="color:var(--on-surface)">Próximas Citas</h3><a href="/citas" class="text-xs font-medium hover:underline" style="color:var(--primary)">Ver todas</a></div>';
         var hoyAppts = (s.today_appointments_list || []).slice(0, 6);
         if (hoyAppts.length > 0) {
@@ -405,7 +415,7 @@
 
         // Right: Pacientes Recientes
         html += '<div class="flex flex-col space-y-6">';
-        html += '<div class="flex-1 rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="flex-1 rounded-xl p-6 card-shadow border panel-card d2" style="background:#fff;border-color:var(--outline-variant)">';
         html += '<h3 class="text-lg font-semibold mb-4" style="color:var(--on-surface)">Pacientes Recientes</h3>';
         html += '<div class="space-y-4">';
         if (recent && recent.length > 0) {
@@ -413,7 +423,7 @@
                 var p = recent[i];
                 var initial = p.name ? p.name.charAt(0).toUpperCase() : '?';
                 var lastVisit = p.last_visit ? fmtDate(p.last_visit) : (p.created_at ? fmtDate(p.created_at) : '—');
-                html += '<a href="/paciente/' + p.id + '" class="flex items-center gap-3 no-underline">';
+                html += '<a href="/paciente/' + p.id + '" class="flex items-center gap-3 no-underline patient-row">';
                 html += '<div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border flex-shrink-0" style="background:var(--surface-variant);color:var(--primary);border-color:var(--outline-variant)">' + initial + '</div>';
                 html += '<div class="min-w-0"><div class="text-sm font-medium truncate" style="color:var(--on-surface)">' + escHtml(p.name) + '</div><div class="text-xs" style="color:var(--on-variant)">Última visita: ' + lastVisit + '</div></div>';
                 html += '</a>';
@@ -425,11 +435,11 @@
 
         // Charts — Estado del Sistema (fiel al espíritu del prototipo Stitch: analytics en el dashboard)
         html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">';
-        html += '<div class="rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="rounded-xl p-6 card-shadow border panel-card d3" style="background:#fff;border-color:var(--outline-variant)">';
         html += '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold" style="color:var(--on-surface)">Pacientes por Estado</h3><span class="text-xs" style="color:var(--on-variant)">Ciclo de cuidado</span></div>';
         html += '<div style="height:230px"><canvas id="chart-estado"></canvas></div>';
         html += '</div>';
-        html += '<div class="rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="rounded-xl p-6 card-shadow border panel-card d4" style="background:#fff;border-color:var(--outline-variant)">';
         html += '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold" style="color:var(--on-surface)">Ingresos por Mes</h3><span class="text-xs" style="color:var(--on-variant)">RD$</span></div>';
         html += '<div style="height:230px"><canvas id="chart-ingresos"></canvas></div>';
         html += '</div>';
