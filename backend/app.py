@@ -131,8 +131,10 @@ def no_cache(resp):
     resp.headers['Expires'] = '0'
     return resp
 
-# Database: local SQLite by default to avoid Render DB dependency
-database_url = 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db')
+# Database: Postgres (Render) si DATABASE_URL está definido; SQLite local como fallback de desarrollo
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db'))
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
