@@ -356,14 +356,14 @@ def load_config():
     except:
         return {
             "clinica": {
-                "nombre": "Clínica Dental Pimentel",
+                "nombre": "Dra. Reyna Pimentel",
                 "eslogan": "Tu sonrisa, nuestra prioridad",
-                "direccion": "Puerto Plata, República Dominicana",
+                "direccion": "Nagua, Provincia María Trinidad Sánchez, República Dominicana",
                 "telefono": "809-584-7033",
                 "email": "contacto@clinicadentalpimentel.com",
                 "sitio_web": "dra-reyna-pimentel.vercel.app",
-                "color_primario": "#4472C4",
-                "color_secundario": "#2c5aa0"
+                "color_primario": "#1976D2",
+                "color_secundario": "#005dac"
             }
         }
 
