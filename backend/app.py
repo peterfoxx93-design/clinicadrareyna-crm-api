@@ -1644,6 +1644,137 @@ def api_recovery_followup(tid):
     return jsonify({'plan': plan.to_dict(), 'success': True})
 
 # ============================================================
+# API — Crecimiento: Hora Sillón + Orígenes de pacientes
+# ============================================================
+def _work_minutes_in_range(start, end):
+    """Minutos operativos de la clínica: Lun-Vie 8:00-17:00, Sáb 8:00-13:00 (cerrado Dom)."""
+    total = 0
+    day = start.date()
+    while day <= end.date():
+        wd = day.weekday()
+        if wd < 5:
+            total += 9 * 60      # 8:00-17:00
+        elif wd == 5:
+            total += 5 * 60      # Sábado 8:00-13:00
+        day += timedelta(days=1)
+    return total
+
+
+@app.route('/api/growth/chair-hour', methods=['GET'])
+@login_required
+@require_roles('admin', 'doctor')
+def api_growth_chair_hour():
+    """KPIs de Hora Sillón: valor de cada hora del gabinete, ocupación y costo del no-show."""
+    now = datetime.utcnow()
+    try:
+        month = int(request.args.get('month', now.month))
+        year = int(request.args.get('year', now.year))
+        if not (1 <= month <= 12):
+            month = now.month
+    except Exception:
+        month, year = now.month, now.year
+
+    month_start = datetime(year, month, 1)
+    if month == 12:
+        month_end = datetime(year + 1, 1, 1) - timedelta(seconds=1)
+    else:
+        month_end = datetime(year, month + 1, 1) - timedelta(seconds=1)
+
+    available_min = _work_minutes_in_range(month_start, month_end)
+
+    # Ingresos del mes (planes completados en el rango)
+    revenue = db.session.query(func.sum(TreatmentPlan.amount_paid)).filter(
+        TreatmentPlan.completed_at >= month_start,
+        TreatmentPlan.completed_at <= month_end
+    ).scalar() or 0.0
+
+    # Citas del mes
+    appts = Appointment.query.filter(
+        Appointment.appt_datetime >= month_start,
+        Appointment.appt_datetime <= month_end
+    ).all()
+
+    total_min = 0
+    no_shows = 0
+    cancelled = 0
+    completed = 0
+    by_hour = {}
+    for a in appts:
+        dur = a.duration_minutes or 30
+        hour_key = a.appt_datetime.strftime('%H:00')
+        by_hour.setdefault(hour_key, {'count': 0, 'min': 0})
+        by_hour[hour_key]['count'] += 1
+        if a.status == 'no_show':
+            no_shows += 1
+        elif a.status == 'cancelada':
+            cancelled += 1
+        elif a.status == 'completada':
+            completed += 1
+            total_min += dur
+            by_hour[hour_key]['min'] += dur
+        elif a.status in ('pendiente', 'confirmada'):
+            total_min += dur
+            by_hour[hour_key]['min'] += dur
+
+    hours_worked = available_min / 60.0
+    chair_value = (revenue / hours_worked) if hours_worked > 0 else 0
+    occupation = min((total_min / available_min * 100), 100) if available_min > 0 else 0
+    avg_dur = total_min / completed if completed > 0 else 30
+    no_show_cost = (no_shows * avg_dur / 60.0) * chair_value if chair_value > 0 else 0
+
+    hour_chart = [
+        {'hour': k, 'count': v['count'], 'min': v['min']}
+        for k, v in sorted(by_hour.items())
+    ]
+
+    return jsonify({
+        'periodo': {'mes': month, 'año': year},
+        'available_min': available_min,
+        'hours_worked': round(hours_worked, 1),
+        'revenue': float(revenue),
+        'chair_value_per_hour': round(chair_value, 2),
+        'occupation_pct': round(occupation, 1),
+        'appointments': {
+            'total': len(appts),
+            'completadas': completed,
+            'no_show': no_shows,
+            'canceladas': cancelled,
+        },
+        'avg_duration_min': round(avg_dur, 0),
+        'no_show_cost': round(no_show_cost, 2),
+        'by_hour': hour_chart,
+    })
+
+
+@app.route('/api/growth/sources', methods=['GET'])
+@login_required
+@require_roles('admin', 'doctor')
+def api_growth_sources():
+    """KPI por origen: de dónde vienen los pacientes y cuánto aportan."""
+    patients = Patient.query.all()
+    sources = {}
+    for p in patients:
+        key = p.referral_source or p.source or 'directo'
+        s = sources.setdefault(key, {'count': 0, 'revenue': 0.0, 'completed': 0})
+        s['count'] += 1
+        # Ingresos: suma de pagos de sus planes
+        for t in p.treatments.all():
+            s['revenue'] += t.amount_paid or 0
+            if t.status == 'completado':
+                s['completed'] += 1
+
+    rows = sorted(
+        [{'source': k, 'count': v['count'], 'revenue': round(v['revenue'], 2),
+          'completed': v['completed']} for k, v in sources.items()],
+        key=lambda x: x['count'], reverse=True
+    )
+    total = sum(r['count'] for r in rows)
+    for r in rows:
+        r['pct'] = round(r['count'] / total * 100, 1) if total else 0
+
+    return jsonify({'sources': rows, 'total': total})
+
+# ============================================================
 # API — Chat Web Widget (Valentina)
 # ============================================================
 
