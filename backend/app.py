@@ -148,6 +148,8 @@ CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
 init_db(app)
 
 # Migración de seed: si Postgres está vacío y existe migrate_seed.sql (datos del piloto local)
+SEED_TABLES = ['patients', 'appointments', 'treatment_plans', 'services', 'doctors', 'blocked_schedules']
+
 def run_seed_if_empty():
     if not database_url.startswith('postgresql://'):
         return
@@ -158,9 +160,15 @@ def run_seed_if_empty():
         try:
             cnt = db.session.execute(db.text('SELECT count(*) FROM patients')).scalar()
             if cnt and cnt > 0:
+                print('[Seed] pacientes ya existen, skip')
                 return
             with open(seed_path, encoding='utf-8') as f:
                 content = f.read()
+            print(f'[Seed] leyendo {seed_path} ({len(content)} chars, TRUE/FALSE: {content.count("TRUE")})')
+            # Limpiar tablas seed para evitar conflictos con seeds de init_db
+            for t in SEED_TABLES:
+                db.session.execute(db.text(f'TRUNCATE TABLE {t} RESTART IDENTITY CASCADE'))
+            db.session.commit()
             for stmt in content.split(';'):
                 s = stmt.strip()
                 if s and not s.startswith('--'):
