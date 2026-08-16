@@ -233,6 +233,8 @@
                 var stats = await api('/api/stats');
                 var pData = await api('/api/patients');
                 main.innerHTML = renderDashboard(stats, pData ? pData.patients.slice(0, 5) : []);
+                try { var fData = await api('/api/finance/overview'); } catch (e) { var fData = null; }
+                initDashboardCharts(stats, fData);
             } else if (path === '/pacientes') {
                 var search = window.location.search;
                 var data = await api('/api/patients' + search);
@@ -384,7 +386,61 @@
             html += '<p class="text-sm" style="color:var(--on-variant)">No hay pacientes aún</p>';
         }
         html += '</div></div></div></div></div>';
+
+        // Charts — Estado del Sistema (fiel al espíritu del prototipo Stitch: analytics en el dashboard)
+        html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">';
+        html += '<div class="rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold" style="color:var(--on-surface)">Pacientes por Estado</h3><span class="text-xs" style="color:var(--on-variant)">Ciclo de cuidado</span></div>';
+        html += '<div style="height:230px"><canvas id="chart-estado"></canvas></div>';
+        html += '</div>';
+        html += '<div class="rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold" style="color:var(--on-surface)">Ingresos por Mes</h3><span class="text-xs" style="color:var(--on-variant)">RD$</span></div>';
+        html += '<div style="height:230px"><canvas id="chart-ingresos"></canvas></div>';
+        html += '</div>';
+        html += '</div>';
+
         return html;
+    }
+
+    function initDashboardCharts(stats, finance) {
+        var estadoEl = document.getElementById('chart-estado');
+        var ingresosEl = document.getElementById('chart-ingresos');
+        if (!estadoEl || !ingresosEl || typeof Chart === 'undefined') return;
+
+        // Donut — distribución por estado del care cycle
+        var bs = stats.by_status || {};
+        var estadoMap = {
+            nuevo: { label: 'Nuevo', color: '#1976d2' },
+            agendado: { label: 'Agendado', color: '#f59e0b' },
+            diagnosticado: { label: 'Diagnosticado', color: '#8b5cf6' },
+            plan_aceptado: { label: 'Plan Aceptado', color: '#0288d1' },
+            en_tratamiento: { label: 'En Tratamiento', color: '#f97316' },
+            completado: { label: 'Completado', color: '#2E7D32' },
+            retorno: { label: 'Retorno', color: '#06b6d4' },
+            perdido: { label: 'Perdido', color: '#94a3b8' }
+        };
+        var labels = [], data = [], colors = [];
+        for (var k in estadoMap) {
+            if ((bs[k] || 0) > 0) { labels.push(estadoMap[k].label); data.push(bs[k]); colors.push(estadoMap[k].color); }
+        }
+        if (labels.length === 0) { labels = ['Sin datos']; data = [1]; colors = ['#e2e8f0']; }
+        new Chart(estadoEl, {
+            type: 'doughnut',
+            data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '62%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, font: { size: 11 }, padding: 14 } } } }
+        });
+
+        // Bar — ingresos por mes (últimos 6 con datos)
+        var monthly = (finance && finance.monthly) || [];
+        var m6 = monthly.slice(-6);
+        var meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        var mLabels = m6.map(function (m) { var p = parseInt(m.month.slice(5, 7), 10) - 1; return meses[p] + ' ' + m.month.slice(2, 4); });
+        var mData = m6.map(function (m) { return m.income || 0; });
+        new Chart(ingresosEl, {
+            type: 'bar',
+            data: { labels: mLabels, datasets: [{ label: 'Ingresos (RD$)', data: mData, backgroundColor: 'rgba(25,118,210,0.75)', hoverBackgroundColor: '#1976d2', borderRadius: 6, borderSkipped: false }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 }, callback: function (v) { return v >= 1000 ? (v / 1000) + 'k' : v; } } }, x: { ticks: { font: { size: 10 } } } } }
+        });
     }
 
     function fmtTime(iso) {
