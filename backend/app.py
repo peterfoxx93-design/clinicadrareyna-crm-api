@@ -123,6 +123,14 @@ app = Flask(__name__,
 app.debug = False
 app.secret_key = os.environ.get('CLINICA_SECRET', 'reyna-pimentel-2026')
 
+# No cache: evita que el navegador sirva HTML viejo (clave para túneles cambiantes)
+@app.after_request
+def no_cache(resp):
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    resp.headers['Expires'] = '0'
+    return resp
+
 # Database: local SQLite by default to avoid Render DB dependency
 database_url = 'sqlite:///' + os.path.join(BASE, 'data', 'clinica.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
