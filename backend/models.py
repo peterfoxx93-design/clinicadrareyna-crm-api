@@ -253,6 +253,8 @@ class TreatmentPlan(db.Model):
     amount_paid = db.Column(db.Float, default=0.0)
     status = db.Column(db.String(20), default='presentado')
     notes = db.Column(db.Text, default='')
+    followup_count = db.Column(db.Integer, default=0)      # recovery de presupuestos
+    last_followup_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at = db.Column(db.DateTime, nullable=True)
 
@@ -261,6 +263,7 @@ class TreatmentPlan(db.Model):
             'id': self.id,
             'patient_id': self.patient_id,
             'patient_name': self.patient.name if self.patient else '',
+            'patient_phone': self.patient.phone if self.patient else '',
             'title': self.title,
             'description': self.description,
             'amount': self.amount,
@@ -268,6 +271,8 @@ class TreatmentPlan(db.Model):
             'balance': self.amount - self.amount_paid,
             'status': self.status,
             'notes': self.notes,
+            'followup_count': self.followup_count or 0,
+            'last_followup_at': self.last_followup_at.isoformat() if self.last_followup_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
         }
@@ -335,6 +340,8 @@ def init_db(app):
             ("role", "ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'admin'"),
             ("full_name", "ALTER TABLE users ADD COLUMN full_name VARCHAR(200) DEFAULT ''"),
             ("created_at", "ALTER TABLE users ADD COLUMN created_at TIMESTAMP"),
+            ("followup_count", "ALTER TABLE treatment_plans ADD COLUMN followup_count INTEGER DEFAULT 0"),
+            ("last_followup_at", "ALTER TABLE treatment_plans ADD COLUMN last_followup_at TIMESTAMP"),
         ]:
             try:
                 db.session.execute(db.text(ddl))

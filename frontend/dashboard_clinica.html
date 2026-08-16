@@ -158,6 +158,11 @@
             <a href="/doctores" class="sidebar-link" data-role="admin"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Doctores</a>
             <a href="/bloqueo" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Bloqueo de horario</a>
             <div class="pt-3 mt-3" style="border-top:1px solid var(--outline-variant)">
+                <div class="px-2 pb-1 text-[10px] uppercase tracking-wider font-semibold" style="color:var(--outline)">Automatización</div>
+                <a href="/no-show" class="sidebar-link" data-role="admin doctor"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/></svg></span> No-show</a>
+                <a href="/recuperacion" class="sidebar-link" data-role="admin doctor"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><polyline points="21 3 21 8 16 8"/></svg></span> Recuperación</a>
+            </div>
+            <div class="pt-3 mt-3" style="border-top:1px solid var(--outline-variant)">
                 <div class="px-2 pb-1 text-[10px] uppercase tracking-wider font-semibold" style="color:var(--outline)">Administración</div>
                 <a href="/auditoria" class="sidebar-link" data-role="admin"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span> Auditoría</a>
                 <a href="/usuarios" class="sidebar-link" data-role="admin"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Usuarios</a>
@@ -371,6 +376,12 @@
                 if (CURRENT_ROLE !== 'admin') { main.innerHTML = renderNoAuth(); return; }
                 main.innerHTML = renderUsuarios();
                 loadUsuarios();
+            } else if (path === '/no-show') {
+                main.innerHTML = renderNoShow();
+                loadNoShow();
+            } else if (path === '/recuperacion') {
+                main.innerHTML = renderRecovery();
+                loadRecovery();
             } else {
                 main.innerHTML = '<div class="text-center py-16 text-gray-400">Página no encontrada</div>';
             }
@@ -1822,6 +1833,171 @@
     }
 
     // ============================================================
+    // AUTOMATIZACIÓN — No-show proactivo + Recovery de presupuestos
+    // ============================================================
+    function waClean(phone) {
+        return String(phone || '').replace(/\D/g, '');
+    }
+
+    function waLink(phone, msg) {
+        return 'https://wa.me/' + waClean(phone) + '?text=' + encodeURIComponent(msg);
+    }
+
+    function renderNoShow() {
+        return '<div class="fade-in max-w-4xl">' +
+            '<div class="flex justify-between items-center mb-4">' +
+            '<div><h2 class="text-2xl font-bold" style="color:var(--on-surface)">⏰ No-show proactivo</h2>' +
+            '<p class="text-sm text-gray-500 mt-1">Detecta citas que pasaron sin confirmarse y recupera el sillón perdido.</p></div>' +
+            '<button onclick="runNoShowDetection()" class="px-4 py-2 rounded-full text-white text-sm font-medium" style="background:var(--primary)">🔍 Detectar ahora</button>' +
+            '</div>' +
+            '<div id="no-show-result" class="card p-4 mb-4">' +
+            '<p class="text-gray-400 text-sm text-center py-6">Pulsa <strong>Detectar ahora</strong> para marcar como no-show las citas cuya hora ya pasó (más de 60 min sin confirmar).</p>' +
+            '</div>' +
+            '<div class="grid grid-cols-3 gap-4">' +
+            '<div class="card p-4 text-center"><div class="text-2xl font-bold" style="color:var(--error)" id="ns-count">—</div><div class="text-xs text-gray-500 mt-1">Detectadas</div></div>' +
+            '<div class="card p-4 text-center"><div class="text-2xl font-bold" style="color:var(--primary)" id="ns-pending">—</div><div class="text-xs text-gray-500 mt-1">Por venir</div></div>' +
+            '<div class="card p-4 text-center"><div class="text-2xl font-bold" style="color:var(--success)" id="ns-recovered">0</div><div class="text-xs text-gray-500 mt-1">Reagendadas</div></div>' +
+            '</div>' +
+            '</div>';
+    }
+
+    window.runNoShowDetection = async function() {
+        var btn = document.querySelector('#no-show-result');
+        if (btn) btn.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Detectando...</p>';
+        try {
+            var data = await api('/api/automations/no-shows', { method: 'POST' });
+            var marked = data.marked || [];
+            var el = document.getElementById('ns-count');
+            if (el) el.textContent = data.marked_count || 0;
+            var pe = document.getElementById('ns-pending');
+            if (pe) pe.textContent = data.pending_future || 0;
+            var box = document.getElementById('no-show-result');
+            if (!box) return;
+            if (marked.length === 0) {
+                box.innerHTML = '<div class="text-center py-6"><div class="text-3xl mb-2">🎉</div><p class="text-gray-600 text-sm">Sin no-shows pendientes de detectar. Todo al día.</p></div>';
+                return;
+            }
+            var html = '<h3 class="font-bold text-gray-800 mb-3">Citas marcadas como no-show</h3><div class="space-y-2">';
+            for (var i = 0; i < marked.length; i++) {
+                var a = marked[i];
+                var msg = 'Hola ' + (a.patient_name || '') + ', soy del consultorio de la Dra. Reyna Pimentel. Vimos que no pudiste asistir a tu cita del ' + (a.appt_datetime ? fmtDateTime(a.appt_datetime) : '') + '. ¿Te gustaría reagendarla? Tenemos disponibilidad esta semana. 😊';
+                html += '<div class="flex items-center justify-between p-3 bg-red-50 rounded-xl">' +
+                    '<div><div class="font-medium text-sm">' + escHtml(a.patient_name || 'Paciente') + '</div>' +
+                    '<div class="text-xs text-gray-500">' + (a.appt_datetime ? fmtDateTime(a.appt_datetime) : '') + ' · ' + escHtml(a.appt_type || 'consulta') + '</div></div>' +
+                    '<div class="flex items-center gap-2">' +
+                    '<a href="' + waLink(a.patient_phone || '', msg) + '" target="_blank" class="text-xs px-3 py-1.5 rounded-full font-medium" style="background:#25D366;color:#fff">💬 WhatsApp</a>' +
+                    '<button onclick="showNewApptForm(' + a.patient_id + ')" class="text-xs px-3 py-1.5 rounded-full border font-medium" style="color:var(--primary);border-color:var(--primary)">Reagendar</button>' +
+                    '</div></div>';
+            }
+            html += '</div>';
+            box.innerHTML = html;
+            toast('🔍 ' + marked.length + ' no-show(s) detectado(s)');
+        } catch (e) {
+            var box = document.getElementById('no-show-result');
+            if (box) box.innerHTML = '<p class="text-red-500 text-sm">Error: ' + e.message + '</p>';
+        }
+    };
+
+    // ---- Recovery de presupuestos ----
+    function renderRecovery() {
+        return '<div class="fade-in max-w-4xl">' +
+            '<div class="mb-4"><h2 class="text-2xl font-bold" style="color:var(--on-surface)">💰 Recuperación de presupuestos</h2>' +
+            '<p class="text-sm text-gray-500 mt-1">Planes presentados sin aceptar. Cadencia recomendada: <strong>día 3 → 7 → 30</strong>. El presupuesto no aceptado es el mayor dinero perdido de una clínica.</p></div>' +
+            '<div id="recovery-list"><p class="text-gray-400 text-sm">Cargando...</p></div>' +
+            '</div>';
+    }
+
+    function faseBadge(fase, days) {
+        if (fase === 0) return '<span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Día ' + days + ' · aún no toca</span>';
+        if (fase === 3) return '<span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Fase 3 · día ' + days + '</span>';
+        if (fase === 7) return '<span class="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Fase 7 · día ' + days + '</span>';
+        return '<span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Fase 30 · día ' + days + '</span>';
+    }
+
+    window.loadRecovery = async function() {
+        var list = document.getElementById('recovery-list');
+        if (!list) return;
+        try {
+            var data = await api('/api/recovery/plans');
+            var plans = data.plans || [];
+            if (plans.length === 0) {
+                list.innerHTML = '<div class="card p-6 text-center"><div class="text-3xl mb-2">🎉</div><p class="text-gray-600 text-sm">No hay presupuestos pendientes de seguimiento.</p></div>';
+                return;
+            }
+            var html = '<div class="space-y-3">';
+            for (var i = 0; i < plans.length; i++) {
+                var p = plans[i];
+                var faseInfo = faseBadge(p.fase, p.days_since);
+                var urg = p.urgente ? '<span class="text-xs px-2 py-0.5 rounded-full bg-red-600 text-white ml-1">URGENTE</span>' : '';
+                var lastFu = p.days_since_followup !== null ? ('último seguimiento hace ' + p.days_since_followup + 'd') : 'sin seguimiento aún';
+                var msg = 'Hola ' + escHtml(p.patient_name || '') + ', te saluda el consultorio de la Dra. Reyna Pimentel. Queríamos saber si ya pudiste pensar en tu tratamiento de ' + escHtml(p.title || '') + ' (RD$ ' + Number(p.amount || 0).toLocaleString() + '). Si tienes dudas o quieres ajustar el plan, con gusto te ayudamos. 😊';
+                html += '<div class="card p-4">' +
+                    '<div class="flex items-start justify-between gap-3">' +
+                    '<div class="flex-1">' +
+                    '<div class="flex items-center gap-2 flex-wrap"><span class="font-semibold text-gray-800">' + escHtml(p.patient_name || 'Paciente') + '</span>' + faseInfo + urg + '</div>' +
+                    '<div class="text-sm text-gray-600 mt-1">' + escHtml(p.title || 'Sin título') + '</div>' +
+                    '<div class="text-xs text-gray-500 mt-1">RD$ ' + Number(p.amount || 0).toLocaleString() + ' · presentado hace ' + p.days_since + 'd · ' + lastFu + ' · seguimientos: ' + p.followup_count + '</div>' +
+                    (p.notes ? '<div class="text-xs text-gray-400 mt-1">' + escHtml(p.notes) + '</div>' : '') +
+                    '</div>' +
+                    '<div class="flex flex-col gap-2 shrink-0">' +
+                    '<a href="' + waLink(p.patient_phone || '', msg) + '" target="_blank" class="text-xs px-3 py-1.5 rounded-full font-medium text-center" style="background:#25D366;color:#fff">💬 WhatsApp</a>' +
+                    '<button onclick="openFollowupModal(' + p.id + ')" class="text-xs px-3 py-1.5 rounded-full border font-medium" style="color:var(--primary);border-color:var(--primary)">Registrar seguimiento</button>' +
+                    '</div></div></div>';
+            }
+            html += '</div>';
+            list.innerHTML = html;
+        } catch (e) {
+            list.innerHTML = '<p class="text-red-500 text-sm">Error: ' + e.message + '</p>';
+        }
+    };
+
+    window.openFollowupModal = function(tid) {
+        var overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+        overlay.style.background = 'rgba(7,30,39,0.55)';
+        overlay.id = 'followup-overlay';
+        overlay.innerHTML = [
+            '<div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" style="animation:panelIn .35s cubic-bezier(.22,1,.36,1) both">',
+            '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-bold" style="color:var(--on-surface)">📞 Registrar seguimiento</h3>' +
+            '<button onclick="closeFollowupModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button></div>',
+            '<label class="text-xs font-semibold text-gray-600">Método</label>',
+            '<select id="fu-method" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1">' +
+            '<option value="whatsapp">💬 WhatsApp</option>' +
+            '<option value="llamada">📞 Llamada</option>' +
+            '<option value="correo">✉️ Correo</option>' +
+            '<option value="presencial">🏥 En consulta</option>' +
+            '</select>',
+            '<label class="text-xs font-semibold text-gray-600">Nota (opcional)</label>',
+            '<textarea id="fu-note" rows="2" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1" placeholder="Ej. Cliente pidió más tiempo para decidir"></textarea>',
+            '<label class="text-xs font-semibold text-gray-600">Resultado (opcional)</label>',
+            '<select id="fu-status" class="w-full border rounded-lg p-2 text-sm mb-4 mt-1">' +
+            '<option value="">Sin cambio</option>' +
+            '<option value="aceptado">✅ Aceptó el presupuesto</option>' +
+            '<option value="rechazado">❌ Lo rechazó</option>' +
+            '</select>',
+            '<div class="flex gap-3">' +
+            '<button onclick="closeFollowupModal()" class="flex-1 py-2.5 rounded-full border font-medium text-sm" style="border-color:var(--outline-variant);color:var(--on-variant)">Cancelar</button>' +
+            '<button onclick="saveFollowup(' + tid + ')" class="flex-1 py-2.5 rounded-full text-white font-medium text-sm" style="background:var(--primary)">Guardar</button>' +
+            '</div></div>'
+        ].join('');
+        document.body.appendChild(overlay);
+    };
+
+    window.closeFollowupModal = function() { var el = document.getElementById('followup-overlay'); if (el) el.remove(); };
+
+    window.saveFollowup = async function(tid) {
+        var body = {
+            method: document.getElementById('fu-method').value,
+            note: document.getElementById('fu-note').value.trim(),
+            status: document.getElementById('fu-status').value || null
+        };
+        try {
+            var data = await api('/api/recovery/plans/' + tid + '/followup', { method: 'POST', body: JSON.stringify(body) });
+            if (data && data.success) { closeFollowupModal(); loadRecovery(); toast('✅ Seguimiento registrado'); }
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    // ============================================================
     // SEGURIDAD — RBAC, Consentimientos, Auditoría, Usuarios
     // ============================================================
     var CURRENT_ROLE = 'admin';
@@ -1839,13 +2015,12 @@
             var roles = (a.getAttribute('data-role') || '').split(' ');
             a.style.display = (roles.indexOf(CURRENT_ROLE) >= 0) ? '' : 'none';
         });
-        // Si no quedan items visibles, ocultar el bloque Administración
-        var adminBlock = document.querySelector('#sidebar-nav div[style*="border-top"]');
-        if (adminBlock) {
-            var visible = adminBlock.querySelectorAll('.sidebar-link').length > 0 &&
-                Array.from(adminBlock.querySelectorAll('.sidebar-link')).some(function (a) { return a.style.display !== 'none'; });
-            adminBlock.style.display = visible ? '' : 'none';
-        }
+        // Ocultar bloques de grupo (Automatización/Administración) sin items visibles
+        document.querySelectorAll('#sidebar-nav div[style*="border-top"]').forEach(function (block) {
+            var links = block.querySelectorAll('.sidebar-link');
+            var visible = links.length > 0 && Array.from(links).some(function (a) { return a.style.display !== 'none'; });
+            block.style.display = visible ? '' : 'none';
+        });
     }
 
     // ---- Consentimientos digitales ----

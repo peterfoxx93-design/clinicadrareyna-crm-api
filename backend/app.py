@@ -1535,6 +1535,115 @@ def api_delete_consent(cid):
     return jsonify({'success': True})
 
 # ============================================================
+# API — Automatización: No-show proactivo + Recovery de presupuestos
+# ============================================================
+@app.route('/api/automations/no-shows', methods=['POST'])
+@login_required
+@require_roles('admin', 'doctor', 'recepcionista')
+def api_detect_no_shows():
+    """Marca como no_show las citas pendientes/confirmadas cuya hora ya pasó (>= 60 min).
+    Devuelve las citas marcadas y el total de citas pendientes pendientes de detección."""
+    grace_minutes = int(request.args.get('grace', 60))
+    cutoff = datetime.utcnow() - timedelta(minutes=grace_minutes)
+    candidates = Appointment.query.filter(
+        Appointment.appt_datetime < cutoff,
+        Appointment.status.in_(['pendiente', 'confirmada'])
+    ).order_by(Appointment.appt_datetime).all()
+
+    marked = []
+    for appt in candidates:
+        appt.status = 'no_show'
+        marked.append(appt.to_dict())
+
+    if marked:
+        db.session.commit()
+        write_audit('no_show_detectado', 'cita', None, f'{len(marked)} citas marcadas como no-show')
+
+    # Cuántas quedan por pasar (sin marcar, futuras)
+    pending_future = Appointment.query.filter(
+        Appointment.appt_datetime >= cutoff,
+        Appointment.status.in_(['pendiente', 'confirmada'])
+    ).count()
+
+    return jsonify({
+        'success': True,
+        'marked': marked,
+        'marked_count': len(marked),
+        'pending_future': pending_future,
+        'grace_minutes': grace_minutes,
+    })
+
+
+@app.route('/api/recovery/plans', methods=['GET'])
+@login_required
+@require_roles('admin', 'doctor')
+def api_recovery_plans():
+    """Presupuestos sin aceptar (presentado/rechazado) con fase de cadencia 3-7-30 días."""
+    now = datetime.utcnow()
+    plans = TreatmentPlan.query.filter(
+        TreatmentPlan.status.in_(['presentado', 'rechazado'])
+    ).order_by(TreatmentPlan.created_at.asc()).all()
+
+    result = []
+    for p in plans:
+        days_since = (now - (p.created_at or now)).days if p.created_at else 0
+        # Fase de cadencia: 3 → 7 → 30
+        if days_since >= 30:
+            fase = 30
+            next_in = 0
+        elif days_since >= 7:
+            fase = 7
+            next_in = 30 - days_since
+        elif days_since >= 3:
+            fase = 3
+            next_in = 7 - days_since
+        else:
+            fase = 0
+            next_in = 3 - days_since
+        last_fu = p.last_followup_at
+        days_since_fu = (now - last_fu).days if last_fu else None
+        result.append({
+            **p.to_dict(),
+            'days_since': days_since,
+            'fase': fase,
+            'next_in_days': max(next_in, 0),
+            'days_since_followup': days_since_fu,
+            'urgente': days_since >= 7 and (days_since_fu is None or days_since_fu >= 3),
+        })
+
+    return jsonify({'plans': result, 'total': len(result)})
+
+
+@app.route('/api/recovery/plans/<int:tid>/followup', methods=['POST'])
+@login_required
+@require_roles('admin', 'doctor')
+@audit_log('seguimiento_plan', 'tratamiento')
+def api_recovery_followup(tid):
+    """Registra un seguimiento del presupuesto (llamada/WhatsApp) y opcionalmente cambia su estado."""
+    plan = db.session.get(TreatmentPlan, tid)
+    if not plan:
+        return jsonify({'error': 'not found'}), 404
+    data = request.get_json() or {}
+    method = data.get('method', 'whatsapp')  # whatsapp | llamada | correo | presencial
+    note = (data.get('note') or '').strip()
+    new_status = data.get('status')          # opcional: aceptado / rechazado
+
+    plan.followup_count = (plan.followup_count or 0) + 1
+    plan.last_followup_at = datetime.utcnow()
+    if note:
+        plan.notes = ((plan.notes or '') + f"\n[{method}] {note}").strip()
+
+    if new_status in ('aceptado', 'rechazado'):
+        plan.status = new_status
+        if new_status == 'aceptado' and plan.patient:
+            plan.patient.status = 'plan_aceptado'
+        if new_status == 'rechazado' and plan.patient:
+            plan.patient.status = 'diagnosticado'
+
+    db.session.commit()
+    return jsonify({'plan': plan.to_dict(), 'success': True})
+
+# ============================================================
 # API — Chat Web Widget (Valentina)
 # ============================================================
 
