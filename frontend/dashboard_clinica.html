@@ -66,9 +66,11 @@
         /* ===== Odontograma digital ===== */
         .odonto-arc { margin-bottom: 14px; }
         .odonto-arc-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--on-variant); margin-bottom: 6px; }
-        .odonto-row { display: flex; gap: 5px; justify-content: center; }
-        .odonto-mid { display: flex; align-items: center; justify-content: center; width: 26px; color: var(--outline); font-size: 10px; }
-        .odonto-tooth { width: 36px; height: 44px; border-radius: 9px; border: 1.5px solid var(--outline-variant); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease; position: relative; background: #fff; }
+        .odonto-row { display: flex; gap: 5px; justify-content: flex-start; overflow-x: auto; padding: 4px 2px 8px; -webkit-overflow-scrolling: touch; }
+        .odonto-row::-webkit-scrollbar { height: 4px; }
+        .odonto-row::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: 4px; }
+        .odonto-mid { display: flex; align-items: center; justify-content: center; width: 26px; flex: 0 0 26px; color: var(--outline); font-size: 10px; }
+        .odonto-tooth { width: 36px; height: 44px; flex: 0 0 36px; border-radius: 9px; border: 1.5px solid var(--outline-variant); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease; position: relative; background: #fff; }
         .odonto-tooth:hover { transform: translateY(-4px) scale(1.08); box-shadow: 0 8px 18px rgba(0,0,0,0.20); z-index: 3; }
         .odonto-tooth.surface-marked::after { content: ''; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.25); }
         .odonto-num { font-size: 9px; font-weight: 800; line-height: 1; margin-top: 3px; color: inherit; }
@@ -84,6 +86,14 @@
         .odonto-status-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1.5px solid var(--outline-variant); background: #fff; cursor: pointer; transition: all .15s; }
         .odonto-status-chip.sel { border-color: var(--primary); background: var(--primary-tint); color: var(--primary-dark); box-shadow: 0 2px 8px rgba(25,118,210,0.18); }
         .odonto-status-chip i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; border: 1px solid rgba(0,0,0,0.15); }
+        @media (min-width: 768px) {
+            .odonto-row { justify-content: center; overflow-x: visible; }
+        }
+        @media (max-width: 420px) {
+            .odonto-tooth { width: 30px; height: 38px; flex-basis: 30px; border-radius: 7px; }
+            .odonto-mid { width: 16px; flex-basis: 16px; }
+            .odonto-row { gap: 3px; }
+        }
         .btn { transition: all 0.15s; }
         .btn:active { transform: scale(0.97); }
         .fade-in { animation: fadeIn 0.3s ease-in; }
@@ -996,6 +1006,7 @@
         var arcs = odontoArcs(odontoSet);
         return '<div class="odonto-arc"><div class="odonto-arc-title">Maxilar superior</div>' + odontoArcHTML(arcs.top) + '</div>' +
             '<div class="odonto-arc"><div class="odonto-arc-title">Mandíbula</div>' + odontoArcHTML(arcs.bottom) + '</div>' +
+            '<p class="text-[10px] text-gray-400 mb-1 md:hidden">↔ Desliza la fila para ver los dientes laterales</p>' +
             '<div class="odonto-legend">' + odontoLegendHTML() + '</div>' +
             '<textarea id="odonto-notes-area" rows="2" class="w-full border rounded-xl p-3 text-sm mt-3" placeholder="Notas generales del odontograma (ej. prótesis planificada, referencias clínicas…)"></textarea>' +
             '<div class="flex justify-end mt-2"><button onclick="saveOdontoNotes()" class="text-xs px-4 py-2 rounded-full font-medium border" style="color:var(--primary);border-color:var(--primary-soft)">Guardar notas</button></div>';
