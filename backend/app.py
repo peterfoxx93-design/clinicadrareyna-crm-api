@@ -469,6 +469,25 @@ def api_get_stats():
         Appointment.appt_datetime < today_start + timedelta(days=1)
     ).count()
 
+    # Lista de citas de hoy (para el dashboard — panel derecho)
+    today_appts_rows = Appointment.query.filter(
+        Appointment.appt_datetime >= today_start,
+        Appointment.appt_datetime < today_start + timedelta(days=1)
+    ).order_by(Appointment.appt_datetime.asc()).limit(6).all()
+    today_appointments_list = []
+    for a in today_appts_rows:
+        p = Patient.query.get(a.patient_id)
+        doc = Doctor.query.get(a.doctor_id) if getattr(a, 'doctor_id', None) else None
+        today_appointments_list.append({
+            'id': a.id,
+            'patient_id': a.patient_id,
+            'patient_name': p.name if p else 'Paciente',
+            'appt_type': a.appt_type,
+            'appt_datetime': a.appt_datetime.isoformat() if a.appt_datetime else None,
+            'status': a.status,
+            'doctor_name': doc.name if doc else None,
+        })
+
     upcoming = Appointment.query.filter(
         Appointment.appt_datetime >= now,
         Appointment.status.in_(['pendiente', 'confirmada'])
@@ -501,6 +520,7 @@ def api_get_stats():
         'today_new': today_new,
         'by_status': by_status,
         'today_appointments': today_appts,
+        'today_appointments_list': today_appointments_list,
         'total_appointments': Appointment.query.count(),
         'upcoming_appointments': upcoming,
         'recall_due': recall_due,
