@@ -319,11 +319,12 @@
         var bs = s.by_status || {};
         var html = '<div class="fade-in">';
 
-        // Hero — fiel a Stitch: "Hola, Dra. Reyna" + fecha
+        // Hero — fiel a Stitch: "Hola, Dra. Reyna" + fecha + logo de la clínica
         var hoy = new Date().toLocaleDateString('es-DO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-        html += '<div class="mb-8">';
-        html += '<h1 class="text-3xl font-bold" style="color:var(--on-surface)">Hola, Dra. Reyna</h1>';
-        html += '<p class="text-base mt-2 capitalize" style="color:var(--on-variant)">' + hoy + '</p>';
+        html += '<div class="flex items-center gap-4 mb-8">';
+        html += '<div class="w-14 h-14 rounded-2xl overflow-hidden card-shadow border flex items-center justify-center shrink-0" style="background:#fff;border-color:var(--outline-variant)"><img src="/static/logo_clinica.jpg" class="w-full h-full object-cover" alt="Logo Clínica Dental Pimentel"></div>';
+        html += '<div><h1 class="text-3xl font-bold" style="color:var(--on-surface)">Hola, Dra. Reyna</h1>';
+        html += '<p class="text-base mt-2 capitalize" style="color:var(--on-variant)">' + hoy + '</p></div>';
         html += '</div>';
 
         // Metrics grid — 4 cards clickeables (blancas; se iluminan al pasar el mouse encima)
