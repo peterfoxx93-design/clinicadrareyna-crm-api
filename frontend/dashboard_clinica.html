@@ -92,7 +92,7 @@
                     <div class="text-xs" style="color:var(--on-variant)">Odontóloga</div>
                 </div>
             </div>
-            <button onclick="navigateTo('/citas')" class="w-full rounded-lg py-3 px-4 text-white text-xs font-medium tracking-wide flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
+            <button onclick="window.location='/citas'" class="w-full rounded-lg py-3 px-4 text-white text-xs font-medium tracking-wide flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Agendar Cita
             </button>
@@ -156,7 +156,7 @@
                     <a href="/reportes" class="text-xs font-medium hover:underline" style="color:var(--primary)">Ver reporte completo</a>
                 </div>
             </div>
-            <button onclick="navigateTo('/citas')" class="hidden sm:flex rounded-lg py-2 px-4 text-white text-xs font-medium tracking-wide hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
+            <button onclick="window.location='/citas'" class="hidden sm:flex rounded-lg py-2 px-4 text-white text-xs font-medium tracking-wide hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
                 Nueva Cita
             </button>
             <div class="w-8 h-8 rounded-full overflow-hidden border ml-1 cursor-pointer" style="border-color:var(--outline-variant)">
@@ -269,7 +269,7 @@
                 var pData = await api('/api/patients');
                 main.innerHTML = renderDashboard(stats, pData ? pData.patients.slice(0, 5) : []);
                 try { var fData = await api('/api/finance/overview'); } catch (e) { var fData = null; }
-                initDashboardCharts(stats, fData);
+                ensureChartsReady(function () { initDashboardCharts(stats, fData); });
                 animateCountUp();
             } else if (path === '/pacientes') {
                 var search = window.location.search;
@@ -293,7 +293,7 @@
                 var stats = await api('/api/stats');
                 try { var fData = await api('/api/finance/overview'); } catch (e) { var fData = null; }
                 main.innerHTML = renderReports(stats, fData);
-                initReportsCharts(stats, fData);
+                ensureChartsReady(function () { initReportsCharts(stats, fData); });
             } else if (path === '/servicios') {
                 var data = await api('/api/services');
                 main.innerHTML = renderServices(data ? data.services : []);
@@ -1232,7 +1232,15 @@
         document.getElementById('report-preview').innerHTML = '<div class="text-xs text-gray-400 mb-4" style="text-align:center">Vista previa</div>' + html;
         window._reportHTML = html;
         window._reportData = data;
-        initReportPreviewCharts(data, contentMode);
+        ensureChartsReady(function () { initReportPreviewCharts(data, contentMode); });
+    }
+
+    // Espera a que Chart.js termine de cargar (CDN puede tardar) antes de dibujar
+    function ensureChartsReady(cb, tries) {
+        tries = tries || 0;
+        if (typeof Chart !== 'undefined') { cb(); return; }
+        if (tries > 25) return;
+        setTimeout(function () { ensureChartsReady(cb, tries + 1); }, 300);
     }
 
     function initReportPreviewCharts(data, contentMode) {
