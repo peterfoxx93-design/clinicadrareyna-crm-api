@@ -150,13 +150,18 @@
             <a href="/" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> Dashboard</a>
             <a href="/pacientes" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Pacientes</a>
             <a href="/citas" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span> Citas</a>
-            <a href="/tratamientos" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 4 2 4v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-6s2-1 2-4a7 7 0 0 0-7-7z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg></span> Tratamientos</a>
-            <a href="/finanzas" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Facturación</a>
-            <a href="/recall" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></span> Recall</a>
-            <a href="/reportes" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Reportes</a>
-            <a href="/servicios" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Servicios</a>
-            <a href="/doctores" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Doctores</a>
+            <a href="/tratamientos" class="sidebar-link" data-role="admin doctor"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-7 7c0 3 2 4 2 4v6a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-6s2-1 2-4a7 7 0 0 0-7-7z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg></span> Tratamientos</a>
+            <a href="/finanzas" class="sidebar-link" data-role="admin doctor"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Facturación</a>
+            <a href="/recall" class="sidebar-link" data-role="admin doctor"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></span> Recall</a>
+            <a href="/reportes" class="sidebar-link" data-role="admin doctor"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span> Reportes</a>
+            <a href="/servicios" class="sidebar-link" data-role="admin doctor"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Servicios</a>
+            <a href="/doctores" class="sidebar-link" data-role="admin"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span> Doctores</a>
             <a href="/bloqueo" class="sidebar-link"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Bloqueo de horario</a>
+            <div class="pt-3 mt-3" style="border-top:1px solid var(--outline-variant)">
+                <div class="px-2 pb-1 text-[10px] uppercase tracking-wider font-semibold" style="color:var(--outline)">Administración</div>
+                <a href="/auditoria" class="sidebar-link" data-role="admin"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg></span> Auditoría</a>
+                <a href="/usuarios" class="sidebar-link" data-role="admin"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Usuarios</a>
+            </div>
         </nav>
         <div class="px-4 mt-auto">
             <a href="/logout" class="sidebar-link" style="color:var(--on-variant)"><span class="side-ico"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span> Cerrar sesión</a>
@@ -330,6 +335,7 @@
                 var patient = await api('/api/patients/' + id);
                 main.innerHTML = renderPatientDetail(patient);
                 loadOdontograma(id, 'odontograma-' + id);
+                loadConsents(id, 'consents-' + id);
             } else if (path === '/citas') {
                 var data = await api('/api/appointments');
                 main.innerHTML = renderAppointments(data ? data.appointments : []);
@@ -357,6 +363,14 @@
                 var data = await api('/api/blocked-schedules');
                 var docs = await api('/api/doctors');
                 main.innerHTML = renderBloqueo(data ? data.blocked : [], docs ? docs.doctors : []);
+            } else if (path === '/auditoria') {
+                if (CURRENT_ROLE !== 'admin') { main.innerHTML = renderNoAuth(); return; }
+                main.innerHTML = renderAuditoria();
+                loadAuditoria();
+            } else if (path === '/usuarios') {
+                if (CURRENT_ROLE !== 'admin') { main.innerHTML = renderNoAuth(); return; }
+                main.innerHTML = renderUsuarios();
+                loadUsuarios();
             } else {
                 main.innerHTML = '<div class="text-center py-16 text-gray-400">Página no encontrada</div>';
             }
@@ -754,6 +768,16 @@
         html += '</div></div>';
         html += '<p class="text-xs text-gray-400 mb-3">Haz clic en un diente para registrar su estado (caries, obturado, endodoncia, corona, extraído, implante…).</p>';
         html += '<div id="odontograma-' + pt.id + '"><p class="text-gray-400 text-sm py-3">Cargando odontograma...</p></div>';
+        html += '</div>';
+
+        // Consentimientos digitales
+        html += '<div class="card p-4 mb-6">';
+        html += '<div class="flex justify-between items-center mb-3">';
+        html += '<h3 class="font-semibold text-gray-700">📝 Consentimientos firmados</h3>';
+        html += '<button onclick="openConsentModal(' + pt.id + ', \'' + escJs(pt.name) + '\')" class="text-xs px-3 py-1.5 rounded-full font-medium" style="color:#fff;background:var(--primary)">+ Firmar consentimiento</button>';
+        html += '</div>';
+        html += '<p class="text-xs text-gray-400 mb-3">El paciente firma en la pantalla; queda registrado con fecha y responsable.</p>';
+        html += '<div id="consents-' + pt.id + '"><p class="text-gray-400 text-sm">Cargando consentimientos...</p></div>';
         html += '</div>';
 
         // Status changer
@@ -1798,6 +1822,334 @@
     }
 
     // ============================================================
+    // SEGURIDAD — RBAC, Consentimientos, Auditoría, Usuarios
+    // ============================================================
+    var CURRENT_ROLE = 'admin';
+
+    function escJs(s) {
+        return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function renderNoAuth() {
+        return '<div class="text-center py-20"><div class="text-5xl mb-4">🔒</div><h2 class="text-xl font-bold text-gray-800">Acceso restringido</h2><p class="text-gray-500 mt-2">Tu rol no tiene permiso para ver esta sección.</p><button onclick="navigateTo(\'/\')" class="mt-6 px-5 py-2 rounded-full text-white text-sm" style="background:var(--primary)">Ir al dashboard</button></div>';
+    }
+
+    function applyRole() {
+        document.querySelectorAll('#sidebar-nav .sidebar-link[data-role]').forEach(function (a) {
+            var roles = (a.getAttribute('data-role') || '').split(' ');
+            a.style.display = (roles.indexOf(CURRENT_ROLE) >= 0) ? '' : 'none';
+        });
+        // Si no quedan items visibles, ocultar el bloque Administración
+        var adminBlock = document.querySelector('#sidebar-nav div[style*="border-top"]');
+        if (adminBlock) {
+            var visible = adminBlock.querySelectorAll('.sidebar-link').length > 0 &&
+                Array.from(adminBlock.querySelectorAll('.sidebar-link')).some(function (a) { return a.style.display !== 'none'; });
+            adminBlock.style.display = visible ? '' : 'none';
+        }
+    }
+
+    // ---- Consentimientos digitales ----
+    window.loadConsents = async function(pid, containerId) {
+        var container = document.getElementById(containerId);
+        if (!container) return;
+        try {
+            var data = await api('/api/consents?patient_id=' + pid);
+            var consents = data.consents || [];
+            if (consents.length === 0) {
+                container.innerHTML = '<p class="text-gray-400 text-sm text-center py-3">Sin consentimientos registrados</p>';
+                return;
+            }
+            var html = '<div class="space-y-2">';
+            for (var i = 0; i < consents.length; i++) {
+                var c = consents[i];
+                var typeLabel = c.consent_type === 'tratamiento' ? '🦷 Tratamiento' : c.consent_type === 'whatsapp' ? '💬 WhatsApp' : c.consent_type === 'marketing' ? '📣 Marketing' : '🔒 Privacidad';
+                html += '<div class="flex items-start justify-between p-3 bg-gray-50 rounded-xl">';
+                html += '<div class="flex-1">';
+                html += '<div class="font-medium text-sm">' + escHtml(c.title) + '</div>';
+                html += '<div class="text-xs text-gray-500 mt-1">' + typeLabel + ' · Firmado ' + (c.signed_at ? fmtDateTime(c.signed_at) : '') + ' · por ' + escHtml(c.created_by || '-') + '</div>';
+                if (c.body) html += '<p class="text-xs text-gray-600 mt-1">' + escHtml(c.body) + '</p>';
+                if (c.signature_data) html += '<img src="' + c.signature_data + '" class="mt-2 h-14 border border-gray-200 rounded-lg bg-white" alt="Firma">';
+                html += '</div>';
+                if (CURRENT_ROLE === 'admin') html += '<button onclick="deleteConsent(' + c.id + ')" class="text-red-400 text-sm ml-3" title="Eliminar">🗑️</button>';
+                html += '</div>';
+            }
+            html += '</div>';
+            container.innerHTML = html;
+        } catch (e) {
+            container.innerHTML = '<p class="text-red-500 text-sm">Error: ' + e.message + '</p>';
+        }
+    };
+
+    window.openConsentModal = function(pid, patientName) {
+        var overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+        overlay.style.background = 'rgba(7,30,39,0.55)';
+        overlay.id = 'consent-overlay';
+        overlay.innerHTML = [
+            '<div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6" style="animation:panelIn .35s cubic-bezier(.22,1,.36,1) both">',
+            '<div class="flex justify-between items-center mb-4">',
+            '<h3 class="text-lg font-bold" style="color:var(--on-surface)">📝 Consentimiento informado</h3>',
+            '<button onclick="closeConsentModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button>',
+            '</div>',
+            '<p class="text-sm text-gray-500 mb-4">Paciente: <strong>' + escHtml(patientName) + '</strong></p>',
+            '<label class="text-xs font-semibold text-gray-600">Tipo</label>',
+            '<select id="consent-type" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1">',
+            '<option value="tratamiento">🦷 Tratamiento clínico</option>',
+            '<option value="whatsapp">💬 Comunicación por WhatsApp</option>',
+            '<option value="marketing">📣 Marketing y promociones</option>',
+            '<option value="privacidad">🔒 Privacidad de datos</option>',
+            '</select>',
+            '<label class="text-xs font-semibold text-gray-600">Título</label>',
+            '<input id="consent-title" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1" placeholder="Ej. Endodoncia diente 26">',
+            '<label class="text-xs font-semibold text-gray-600">Texto del consentimiento</label>',
+            '<textarea id="consent-body" rows="3" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1" placeholder="Autorizo el tratamiento..."></textarea>',
+            '<label class="text-xs font-semibold text-gray-600">Firma del paciente</label>',
+            '<div class="mt-1 mb-1 border-2 border-dashed rounded-xl relative" style="border-color:var(--outline-variant);height:160px;background:#fafcff;overflow:hidden">',
+            '<canvas id="signature-canvas" class="absolute inset-0 w-full h-full" style="touch-action:none"></canvas>',
+            '</div>',
+            '<div class="flex justify-between items-center mb-4">',
+            '<button onclick="clearSignature()" class="text-xs text-gray-500 hover:text-red-500">✖ Borrar firma</button>',
+            '<span class="text-xs text-gray-400">Firme con el dedo o el lápiz</span>',
+            '</div>',
+            '<div class="flex gap-3">',
+            '<button onclick="closeConsentModal()" class="flex-1 py-2.5 rounded-full border font-medium text-sm" style="border-color:var(--outline-variant);color:var(--on-variant)">Cancelar</button>',
+            '<button onclick="saveConsent(' + pid + ')" class="flex-1 py-2.5 rounded-full text-white font-medium text-sm" style="background:var(--primary)">Guardar firma</button>',
+            '</div>',
+            '</div>'
+        ].join('');
+        document.body.appendChild(overlay);
+        initSignatureCanvas();
+    };
+
+    window.closeConsentModal = function() {
+        var el = document.getElementById('consent-overlay');
+        if (el) el.remove();
+    };
+
+    function initSignatureCanvas() {
+        var canvas = document.getElementById('signature-canvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var drawing = false;
+        function resize() {
+            var parent = canvas.parentElement;
+            var ratio = window.devicePixelRatio || 1;
+            canvas.width = parent.clientWidth * ratio;
+            canvas.height = parent.clientHeight * ratio;
+            ctx.scale(ratio, ratio);
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#071e27';
+        }
+        resize();
+        window._sigCtx = ctx;
+        window._sigDrawn = false;
+        function pos(e) {
+            var rect = canvas.getBoundingClientRect();
+            var t = e.touches ? e.touches[0] : e;
+            return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+        }
+        canvas.addEventListener('mousedown', function(e) { drawing = true; window._sigDrawn = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); });
+        canvas.addEventListener('mousemove', function(e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); });
+        canvas.addEventListener('mouseup', function() { drawing = false; });
+        canvas.addEventListener('mouseleave', function() { drawing = false; });
+        canvas.addEventListener('touchstart', function(e) { drawing = true; window._sigDrawn = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); e.preventDefault(); }, { passive: false });
+        canvas.addEventListener('touchmove', function(e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); }, { passive: false });
+        canvas.addEventListener('touchend', function() { drawing = false; });
+    }
+
+    window.clearSignature = function() {
+        var canvas = document.getElementById('signature-canvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        window._sigDrawn = false;
+    };
+
+    window.saveConsent = async function(pid) {
+        var canvas = document.getElementById('signature-canvas');
+        if (!canvas || !window._sigDrawn) { alert('El paciente debe firmar en el recuadro'); return; }
+        var signature_data = canvas.toDataURL('image/png');
+        var data = await api('/api/consents', {
+            method: 'POST',
+            body: JSON.stringify({
+                patient_id: pid,
+                consent_type: document.getElementById('consent-type').value,
+                title: document.getElementById('consent-title').value || 'Consentimiento informado',
+                body: document.getElementById('consent-body').value,
+                signature_data: signature_data
+            })
+        });
+        if (data && data.success) {
+            closeConsentModal();
+            loadConsents(pid, 'consents-' + pid);
+            toast('✅ Consentimiento firmado y guardado');
+        }
+    };
+
+    window.deleteConsent = async function(cid) {
+        if (!confirm('¿Eliminar este consentimiento?')) return;
+        await api('/api/consents/' + cid, { method: 'DELETE' });
+        var pid = window.location.pathname.split('/')[2];
+        loadConsents(pid, 'consents-' + pid);
+    };
+
+    // ---- Auditoría ----
+    function renderAuditoria() {
+        return '<div class="fade-in max-w-5xl">' +
+            '<h2 class="text-2xl font-bold mb-1" style="color:var(--on-surface)">🛡️ Auditoría</h2>' +
+            '<p class="text-sm text-gray-500 mb-4">Bitácora de actividad: quién hizo qué, cuándo y desde dónde.</p>' +
+            '<div class="flex gap-2 mb-4">' +
+            '<select id="audit-action" onchange="loadAuditoria()" class="border rounded-lg px-3 py-2 text-sm"><option value="">Todas las acciones</option></select>' +
+            '<button onclick="loadAuditoria()" class="px-4 py-2 rounded-full text-white text-sm" style="background:var(--primary)">Actualizar</button>' +
+            '</div>' +
+            '<div id="audit-list"><p class="text-gray-400 text-sm">Cargando...</p></div>' +
+            '</div>';
+    }
+
+    window.loadAuditoria = async function() {
+        var list = document.getElementById('audit-list');
+        if (!list) return;
+        try {
+            var action = (document.getElementById('audit-action') || {}).value || '';
+            var data = await api('/api/audit?limit=100' + (action ? '&action=' + encodeURIComponent(action) : ''));
+            var logs = data.logs || [];
+            if (!window._auditActionsLoaded) {
+                api('/api/audit/actions').then(function(d) {
+                    var sel = document.getElementById('audit-action');
+                    if (!sel) return;
+                    (d.actions || []).forEach(function(a) {
+                        var opt = document.createElement('option');
+                        opt.value = a; opt.textContent = a;
+                        sel.appendChild(opt);
+                    });
+                    window._auditActionsLoaded = true;
+                }).catch(function(){});
+            }
+            if (logs.length === 0) {
+                list.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">Sin actividad registrada</p>';
+                return;
+            }
+            var html = '<div class="card p-4"><div class="space-y-1">';
+            for (var i = 0; i < logs.length; i++) {
+                var l = logs[i];
+                var icon = l.action.indexOf('login') >= 0 ? '🔑' : l.action.indexOf('eliminar') >= 0 ? '🗑️' : l.action.indexOf('crear') >= 0 ? '➕' : l.action.indexOf('firmar') >= 0 ? '✍️' : l.action.indexOf('odontograma') >= 0 ? '🦷' : '🔄';
+                html += '<div class="flex items-start justify-between py-2 border-b border-gray-100 text-sm">' +
+                    '<div class="flex items-start gap-3">' +
+                    '<span class="text-base">' + icon + '</span>' +
+                    '<div><div><span class="font-medium">' + escHtml(l.username || 'anónimo') + '</span> · <span class="text-gray-700">' + escHtml(l.action) + '</span> ' + (l.entity ? '<span class="text-gray-400">(' + escHtml(l.entity) + (l.entity_id ? ' #' + escHtml(l.entity_id) : '') + ')</span>' : '') + '</div>' +
+                    (l.details ? '<div class="text-xs text-gray-500">' + escHtml(l.details) + '</div>' : '') +
+                    '</div></div>' +
+                    '<div class="text-right shrink-0 ml-4"><div class="text-xs text-gray-500">' + (l.created_at ? fmtDateTime(l.created_at) : '') + '</div>' + (l.ip ? '<div class="text-[10px] text-gray-400">' + escHtml(l.ip) + '</div>' : '') + '</div>' +
+                    '</div>';
+            }
+            html += '</div></div>';
+            list.innerHTML = html;
+        } catch (e) {
+            list.innerHTML = '<p class="text-red-500 text-sm">Error: ' + e.message + '</p>';
+        }
+    };
+
+    // ---- Usuarios ----
+    function renderUsuarios() {
+        return '<div class="fade-in max-w-4xl">' +
+            '<div class="flex justify-between items-center mb-4">' +
+            '<div><h2 class="text-2xl font-bold" style="color:var(--on-surface)">👥 Usuarios</h2>' +
+            '<p class="text-sm text-gray-500 mt-1">Roles: admin (todo) · doctor (clínica) · recepcionista (agenda y pacientes).</p></div>' +
+            '<button onclick="openUserModal()" class="px-4 py-2 rounded-full text-white text-sm font-medium" style="background:var(--primary)">+ Nuevo usuario</button>' +
+            '</div>' +
+            '<div id="users-list" class="card p-4"><p class="text-gray-400 text-sm">Cargando...</p></div>' +
+            '</div>';
+    }
+
+    window.loadUsuarios = async function() {
+        var list = document.getElementById('users-list');
+        if (!list) return;
+        try {
+            var data = await api('/api/users');
+            var users = data.users || [];
+            if (users.length === 0) { list.innerHTML = '<p class="text-gray-400 text-sm text-center py-6">Sin usuarios</p>'; return; }
+            var roleColor = { admin: 'text-red-600', doctor: 'text-blue-600', recepcionista: 'text-green-600' };
+            var html = '<div class="space-y-2">';
+            for (var i = 0; i < users.length; i++) {
+                var u = users[i];
+                var initials = (u.full_name || u.username).split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+                html += '<div class="flex items-center justify-between p-3 bg-gray-50 rounded-xl">' +
+                    '<div class="flex items-center gap-3"><div class="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background:var(--primary)">' + escHtml(initials) + '</div>' +
+                    '<div><div class="font-medium text-sm">' + escHtml(u.full_name || u.username) + '</div>' +
+                    '<div class="text-xs text-gray-500">@' + escHtml(u.username) + '</div></div></div>' +
+                    '<div class="flex items-center gap-3"><span class="text-xs font-medium ' + (roleColor[u.role] || '') + '">' + escHtml(u.role) + '</span>' +
+                    '<button onclick="openUserModal(' + u.id + ', \'' + escJs(u.username) + '\', \'' + escJs(u.role) + '\')" class="text-xs text-gray-500 hover:text-blue-600">Editar</button>' +
+                    (u.username !== 'admin' ? '<button onclick="deleteUser(' + u.id + ')" class="text-xs text-red-400 hover:text-red-600">Eliminar</button>' : '') +
+                    '</div></div>';
+            }
+            html += '</div>';
+            list.innerHTML = html;
+        } catch (e) {
+            list.innerHTML = '<p class="text-red-500 text-sm">Error: ' + e.message + '</p>';
+        }
+    };
+
+    window.openUserModal = function(uid, username, role) {
+        var overlay = document.createElement('div');
+        overlay.className = 'fixed inset-0 z-[100] flex items-center justify-center p-4';
+        overlay.style.background = 'rgba(7,30,39,0.55)';
+        overlay.id = 'user-overlay';
+        overlay.innerHTML = [
+            '<div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" style="animation:panelIn .35s cubic-bezier(.22,1,.36,1) both">',
+            '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-bold" style="color:var(--on-surface)">' + (uid ? 'Editar usuario' : 'Nuevo usuario') + '</h3>' +
+            '<button onclick="closeUserModal()" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button></div>',
+            '<label class="text-xs font-semibold text-gray-600">Nombre completo</label>',
+            '<input id="user-fullname" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1" placeholder="Ej. Dra. Reyna Pimentel">',
+            '<label class="text-xs font-semibold text-gray-600">Usuario</label>',
+            '<input id="user-username" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1" placeholder="usuario" ' + (uid ? 'disabled' : '') + '>',
+            '<label class="text-xs font-semibold text-gray-600">Contraseña' + (uid ? ' (dejar vacío para no cambiar)' : '') + '</label>',
+            '<input id="user-password" type="password" class="w-full border rounded-lg p-2 text-sm mb-3 mt-1" placeholder="mínimo 4 caracteres">',
+            '<label class="text-xs font-semibold text-gray-600">Rol</label>',
+            '<select id="user-role" class="w-full border rounded-lg p-2 text-sm mb-4 mt-1">' +
+            '<option value="admin">admin — acceso total</option>' +
+            '<option value="doctor">doctor — clínica y finanzas</option>' +
+            '<option value="recepcionista">recepcionista — agenda y pacientes</option>' +
+            '</select>',
+            '<div class="flex gap-3">' +
+            '<button onclick="closeUserModal()" class="flex-1 py-2.5 rounded-full border font-medium text-sm" style="border-color:var(--outline-variant);color:var(--on-variant)">Cancelar</button>' +
+            '<button onclick="saveUser(' + (uid || 'null') + ')" class="flex-1 py-2.5 rounded-full text-white font-medium text-sm" style="background:var(--primary)">Guardar</button>' +
+            '</div></div>'
+        ].join('');
+        document.body.appendChild(overlay);
+        if (uid) {
+            document.getElementById('user-fullname').value = '';
+            document.getElementById('user-username').value = username || '';
+            document.getElementById('user-role').value = role || 'doctor';
+        }
+    };
+
+    window.closeUserModal = function() { var el = document.getElementById('user-overlay'); if (el) el.remove(); };
+
+    window.saveUser = async function(uid) {
+        var username = document.getElementById('user-username').value.trim();
+        var password = document.getElementById('user-password').value;
+        var role = document.getElementById('user-role').value;
+        var full_name = document.getElementById('user-fullname').value.trim();
+        var body = { role: role, full_name: full_name };
+        if (!uid) { body.username = username; body.password = password; }
+        else if (password) { body.password = password; }
+        try {
+            var data = await api('/api/users' + (uid ? '/' + uid : ''), { method: uid ? 'PUT' : 'POST', body: JSON.stringify(body) });
+            if (data && data.success) { closeUserModal(); loadUsuarios(); toast('✅ Usuario guardado'); }
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    window.deleteUser = async function(uid) {
+        if (!confirm('¿Eliminar este usuario?')) return;
+        try {
+            var data = await api('/api/users/' + uid, { method: 'DELETE' });
+            if (data && data.success) { loadUsuarios(); toast('🗑️ Usuario eliminado'); }
+        } catch (e) { alert('Error: ' + e.message); }
+    };
+
+    // ============================================================
     // INIT
     // ============================================================
     (function() {
@@ -1831,6 +2183,13 @@
         window.addEventListener('popstate', function() { renderPage(); });
         // Fix initial active link
         setActiveLink(window.location.pathname);
+        // RBAC: cargar rol del usuario actual y ocultar secciones no permitidas
+        api('/api/me').then(function(me) {
+            if (me && me.role) CURRENT_ROLE = me.role;
+            applyRole();
+        }).catch(function() {
+            applyRole();
+        });
         renderPage();
         if (window.updateHomeButton) window.updateHomeButton();
     })();

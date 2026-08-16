@@ -14,12 +14,77 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
+    role = db.Column(db.String(20), default='admin')  # admin | doctor | recepcionista
+    full_name = db.Column(db.String(200), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'role': self.role or ('admin' if self.is_admin else 'doctor'),
+            'full_name': self.full_name,
+            'is_admin': bool(self.is_admin),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class AuditLog(db.Model):
+    """Bitácora de actividad: quién hizo qué, cuándo y a quién."""
+    __tablename__ = 'audit_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    username = db.Column(db.String(80), default='')
+    action = db.Column(db.String(60), nullable=False)   # login, logout, crear_paciente, editar_cita, odontograma, ...
+    entity = db.Column(db.String(60), default='')       # paciente, cita, tratamiento, usuario, consentimiento
+    entity_id = db.Column(db.String(40), default='')
+    details = db.Column(db.String(500), default='')
+    ip = db.Column(db.String(60), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'username': self.username,
+            'action': self.action,
+            'entity': self.entity,
+            'entity_id': self.entity_id,
+            'details': self.details,
+            'ip': self.ip,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class Consent(db.Model):
+    """Consentimiento informado firmado digitalmente por el paciente."""
+    __tablename__ = 'consents'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    consent_type = db.Column(db.String(60), default='tratamiento')  # tratamiento | whatsapp | marketing | privacidad
+    title = db.Column(db.String(200), default='')
+    body = db.Column(db.Text, default='')
+    signature_data = db.Column(db.Text, default='')  # dataURL de la firma (canvas)
+    signed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.String(80), default='')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'patient_id': self.patient_id,
+            'consent_type': self.consent_type,
+            'title': self.title,
+            'body': self.body,
+            'signature_data': self.signature_data,
+            'signed_at': self.signed_at.isoformat() if self.signed_at else None,
+            'created_by': self.created_by,
+        }
 
 
 class Doctor(db.Model):
@@ -264,12 +329,34 @@ def init_db(app):
     with app.app_context():
         # Create all tables (including new ones)
         db.create_all()
+        # Migración RBAC: columnas nuevas en users (create_all no altera tablas existentes)
+        # OJO: SQLite NO permite DEFAULT CURRENT_TIMESTAMP en ADD COLUMN → usar solo el tipo.
+        for col, ddl in [
+            ("role", "ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'admin'"),
+            ("full_name", "ALTER TABLE users ADD COLUMN full_name VARCHAR(200) DEFAULT ''"),
+            ("created_at", "ALTER TABLE users ADD COLUMN created_at TIMESTAMP"),
+        ]:
+            try:
+                db.session.execute(db.text(ddl))
+                db.session.commit()
+                print(f"[Migration] users.{col} añadida")
+            except Exception:
+                db.session.rollback()
         # Create default admin if not exists
         if not User.query.filter_by(username='admin').first():
-            admin = User(username='admin', is_admin=True)
+            admin = User(username='admin', is_admin=True, role='admin', full_name='Administrador')
             admin.set_password('reyna2026')
             db.session.add(admin)
             db.session.commit()
+        # Normalizar role del admin existente (si falta)
+        try:
+            adm = User.query.filter_by(username='admin').first()
+            if adm and not adm.role:
+                adm.role = 'admin'
+                adm.is_admin = True
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
         # Seed default doctors if none exist
         if Doctor.query.count() == 0:
             defaults = [

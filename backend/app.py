@@ -15,7 +15,7 @@ import requests as http_req
 import resend
 
 sys.path.insert(0, os.path.dirname(__file__))
-from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, Service, Doctor, BlockedSchedule, ToothState, init_db
+from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, Service, Doctor, BlockedSchedule, ToothState, AuditLog, Consent, init_db
 
 # Resend
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_8WZh1FS5_NNxkw7opeabxFV7QixMu97cH')
@@ -201,6 +201,79 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+# ============================================================
+# RBAC + AUDIT TRAIL
+# ============================================================
+def current_role():
+    """Rol efectivo del usuario (admin hereda todo)."""
+    if not current_user.is_authenticated:
+        return None
+    if getattr(current_user, 'is_admin', False):
+        return 'admin'
+    return getattr(current_user, 'role', 'doctor') or 'doctor'
+
+
+def require_roles(*roles):
+    """Restringe endpoint por rol. Uso: @require_roles('admin', 'doctor')"""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return jsonify({'error': 'No autenticado'}), 401
+            role = current_role()
+            if role not in roles:
+                return jsonify({'error': 'Acceso denegado. Requiere rol: ' + ', '.join(roles)}), 403
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+def audit_log(action, entity='', entity_id=None, details=''):
+    """Registra en la bitácora la acción del usuario actual."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            resp = fn(*args, **kwargs)
+            try:
+                uname = current_user.username if current_user.is_authenticated else 'anónimo'
+                uid = current_user.id if current_user.is_authenticated else None
+                eid = str(entity_id) if entity_id is not None else None
+                if entity and 'id' in kwargs and eid is None:
+                    eid = str(kwargs.get('id', ''))
+                entry = AuditLog(
+                    user_id=uid, username=uname, action=action,
+                    entity=entity, entity_id=eid,
+                    details=(details or '')[:500],
+                    ip=request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip(),
+                )
+                db.session.add(entry)
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f'[Audit] no se pudo registrar {action}: {e}')
+            return resp
+        return wrapper
+    return decorator
+
+
+def write_audit(action, entity='', entity_id=None, details=''):
+    """Registro directo de auditoría (sin decorador, para login/logout)."""
+    try:
+        uname = current_user.username if current_user.is_authenticated else 'anónimo'
+        uid = current_user.id if current_user.is_authenticated else None
+        entry = AuditLog(
+            user_id=uid, username=uname, action=action,
+            entity=entity, entity_id=str(entity_id) if entity_id is not None else None,
+            details=(details or '')[:500],
+            ip=request.headers.get('X-Forwarded-For', request.remote_addr or '').split(',')[0].strip(),
+        )
+        db.session.add(entry)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f'[Audit] no se pudo registrar {action}: {e}')
 
 # ============================================================
 # SEED SERVICES
@@ -430,16 +503,31 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
             login_user(user, remember=True)
+            write_audit('login', 'usuario', user.id, f'Inicio de sesión ({user.username})')
             next_page = request.args.get('next', '/')
             return redirect(next_page)
+        write_audit('login_fallido', 'usuario', None, f'Intento fallido de login: {username}')
         return render_template('login.html', error='Usuario o contraseña incorrectos')
     return render_template('login_clinica.html')
 
 @app.route('/logout')
 @login_required
 def logout():
+    write_audit('logout', 'usuario', current_user.id, f'Cierre de sesión ({current_user.username})')
     logout_user()
     return redirect('/login')
+
+@app.route('/api/me')
+@login_required
+def api_me():
+    """Perfil del usuario actual (rol para RBAC en el frontend)."""
+    return jsonify({
+        'id': current_user.id,
+        'username': current_user.username,
+        'role': current_role(),
+        'full_name': getattr(current_user, 'full_name', '') or '',
+        'is_admin': bool(getattr(current_user, 'is_admin', False)),
+    })
 
 # ============================================================
 # PAGES
@@ -621,6 +709,8 @@ def api_get_patients():
 
 @app.route('/api/patients', methods=['POST'])
 @login_required
+@require_roles('admin', 'doctor', 'recepcionista')
+@audit_log('crear_paciente', 'paciente')
 def api_create_patient():
     data = request.get_json()
     if not data or not data.get('name'):
@@ -666,6 +756,8 @@ def api_get_odontogram(pid):
 
 @app.route('/api/patients/<int:pid>/odontogram/teeth/<int:tooth_number>', methods=['PUT'])
 @login_required
+@require_roles('admin', 'doctor')
+@audit_log('odontograma', 'paciente', details='Editar diente en odontograma')
 def api_put_odontogram_tooth(pid, tooth_number):
     patient = db.session.get(Patient, pid)
     if not patient:
@@ -687,6 +779,8 @@ def api_put_odontogram_tooth(pid, tooth_number):
 
 @app.route('/api/patients/<int:pid>/odontogram/notes', methods=['PUT'])
 @login_required
+@require_roles('admin', 'doctor')
+@audit_log('odontograma', 'paciente', details='Editar notas del odontograma')
 def api_put_odontogram_notes(pid):
     patient = db.session.get(Patient, pid)
     if not patient:
@@ -698,6 +792,8 @@ def api_put_odontogram_notes(pid):
 
 @app.route('/api/patients/<int:pid>', methods=['PUT'])
 @login_required
+@require_roles('admin', 'doctor', 'recepcionista')
+@audit_log('editar_paciente', 'paciente')
 def api_update_patient(pid):
     patient = db.session.get(Patient, pid)
     if not patient:
@@ -713,6 +809,8 @@ def api_update_patient(pid):
 
 @app.route('/api/patients/<int:pid>', methods=['DELETE'])
 @login_required
+@require_roles('admin')
+@audit_log('eliminar_paciente', 'paciente')
 def api_delete_patient(pid):
     patient = db.session.get(Patient, pid)
     if not patient:
@@ -751,6 +849,8 @@ def api_get_appointments():
 
 @app.route('/api/appointments', methods=['POST'])
 @login_required
+@require_roles('admin', 'doctor', 'recepcionista')
+@audit_log('crear_cita', 'cita')
 def api_create_appointment():
     data = request.get_json()
     if not data or not data.get('patient_id') or not data.get('appt_datetime'):
@@ -795,6 +895,8 @@ def api_create_appointment():
 
 @app.route('/api/appointments/<int:aid>', methods=['PUT'])
 @login_required
+@require_roles('admin', 'doctor', 'recepcionista')
+@audit_log('editar_cita', 'cita')
 def api_update_appointment(aid):
     appt = db.session.get(Appointment, aid)
     if not appt:
@@ -872,6 +974,8 @@ def api_get_treatments():
 
 @app.route('/api/treatments', methods=['POST'])
 @login_required
+@require_roles('admin', 'doctor')
+@audit_log('crear_plan', 'tratamiento')
 def api_create_treatment():
     data = request.get_json()
     if not data or not data.get('patient_id'):
@@ -898,6 +1002,8 @@ def api_create_treatment():
 
 @app.route('/api/treatments/<int:tid>', methods=['PUT'])
 @login_required
+@require_roles('admin', 'doctor')
+@audit_log('editar_plan', 'tratamiento')
 def api_update_treatment(tid):
     plan = db.session.get(TreatmentPlan, tid)
     if not plan:
@@ -956,6 +1062,8 @@ def api_get_services():
 
 @app.route('/api/services', methods=['POST'])
 @login_required
+@require_roles('admin')
+@audit_log('crear_servicio', 'servicio')
 def api_create_service():
     data = request.get_json()
     if not data or not data.get('name'):
@@ -974,6 +1082,8 @@ def api_create_service():
 
 @app.route('/api/services/<int:sid>', methods=['PUT'])
 @login_required
+@require_roles('admin')
+@audit_log('editar_servicio', 'servicio')
 def api_update_service(sid):
     service = db.session.get(Service, sid)
     if not service:
@@ -987,6 +1097,8 @@ def api_update_service(sid):
 
 @app.route('/api/services/<int:sid>', methods=['DELETE'])
 @login_required
+@require_roles('admin')
+@audit_log('eliminar_servicio', 'servicio')
 def api_delete_service(sid):
     service = db.session.get(Service, sid)
     if not service:
@@ -1029,6 +1141,7 @@ def api_get_recall():
 # ============================================================
 @app.route('/api/report', methods=['GET'])
 @login_required
+@require_roles('admin', 'doctor')
 def api_get_report():
     days = request.args.get('days', 30, type=int)
     now = datetime.utcnow()
@@ -1087,6 +1200,7 @@ def api_get_report():
 # ============================================================
 @app.route('/api/finance/overview', methods=['GET'])
 @login_required
+@require_roles('admin', 'doctor')
 def api_finance_overview():
     """Financial overview: total income, monthly breakdown, by service, pending."""
     now = datetime.utcnow()
@@ -1152,6 +1266,7 @@ def api_finance_overview():
 
 @app.route('/api/finance/pending', methods=['GET'])
 @login_required
+@require_roles('admin', 'doctor')
 def api_finance_pending():
     """List treatment plans with pending balance."""
     plans = TreatmentPlan.query.filter(
@@ -1185,6 +1300,8 @@ def api_get_doctors():
 
 @app.route('/api/doctors', methods=['POST'])
 @login_required
+@require_roles('admin')
+@audit_log('crear_doctor', 'doctor')
 def api_create_doctor():
     data = request.get_json()
     if not data or not data.get('name'):
@@ -1202,6 +1319,8 @@ def api_create_doctor():
 
 @app.route('/api/doctors/<int:did>', methods=['PUT'])
 @login_required
+@require_roles('admin')
+@audit_log('editar_doctor', 'doctor')
 def api_update_doctor(did):
     doctor = db.session.get(Doctor, did)
     if not doctor:
@@ -1215,6 +1334,8 @@ def api_update_doctor(did):
 
 @app.route('/api/doctors/<int:did>', methods=['DELETE'])
 @login_required
+@require_roles('admin')
+@audit_log('eliminar_doctor', 'doctor')
 def api_delete_doctor(did):
     doctor = db.session.get(Doctor, did)
     if not doctor:
@@ -1238,6 +1359,8 @@ def api_get_blocked():
 
 @app.route('/api/blocked-schedules', methods=['POST'])
 @login_required
+@require_roles('admin', 'doctor', 'recepcionista')
+@audit_log('crear_bloqueo', 'bloqueo')
 def api_create_blocked():
     data = request.get_json()
     if not data or not data.get('block_date'):
@@ -1259,11 +1382,155 @@ def api_create_blocked():
 
 @app.route('/api/blocked-schedules/<int:bid>', methods=['DELETE'])
 @login_required
+@require_roles('admin', 'doctor')
+@audit_log('eliminar_bloqueo', 'bloqueo')
 def api_delete_blocked(bid):
     blocked = db.session.get(BlockedSchedule, bid)
     if not blocked:
         return jsonify({'error': 'not found'}), 404
     db.session.delete(blocked)
+    db.session.commit()
+    return jsonify({'success': True})
+
+# ============================================================
+# API — Seguridad: Auditoría, Usuarios, Consentimientos
+# ============================================================
+@app.route('/api/audit', methods=['GET'])
+@login_required
+@require_roles('admin')
+def api_get_audit():
+    limit = min(int(request.args.get('limit', 100)), 500)
+    action = request.args.get('action', '')
+    q = AuditLog.query
+    if action:
+        q = q.filter_by(action=action)
+    logs = q.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    return jsonify({'logs': [l.to_dict() for l in logs], 'total': len(logs)})
+
+@app.route('/api/audit/actions', methods=['GET'])
+@login_required
+@require_roles('admin')
+def api_audit_actions():
+    """Lista de acciones distintas registradas (para filtros)."""
+    actions = db.session.query(AuditLog.action).distinct().order_by(AuditLog.action).all()
+    return jsonify({'actions': [a[0] for a in actions]})
+
+@app.route('/api/users', methods=['GET'])
+@login_required
+@require_roles('admin')
+def api_get_users():
+    users = User.query.order_by(User.username).all()
+    return jsonify({'users': [u.to_dict() for u in users]})
+
+@app.route('/api/users', methods=['POST'])
+@login_required
+@require_roles('admin')
+@audit_log('crear_usuario', 'usuario')
+def api_create_user():
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    role = data.get('role') or 'doctor'
+    full_name = (data.get('full_name') or '').strip()
+    if not username or len(password) < 4:
+        return jsonify({'error': 'Usuario y contraseña (mín 4 caracteres) son obligatorios'}), 400
+    if role not in ('admin', 'doctor', 'recepcionista'):
+        return jsonify({'error': 'Rol inválido'}), 400
+    if User.query.filter_by(username=username).first():
+        return jsonify({'error': 'El usuario ya existe'}), 409
+    user = User(username=username, role=role, full_name=full_name, is_admin=(role == 'admin'))
+    user.set_password(password)
+    db.session.add(user)
+    db.session.commit()
+    return jsonify({'user': user.to_dict(), 'success': True}), 201
+
+@app.route('/api/users/<int:uid>', methods=['PUT'])
+@login_required
+@require_roles('admin')
+@audit_log('editar_usuario', 'usuario')
+def api_update_user(uid):
+    user = db.session.get(User, uid)
+    if not user:
+        return jsonify({'error': 'not found'}), 404
+    data = request.get_json() or {}
+    if 'password' in data and data['password']:
+        if len(str(data['password'])) < 4:
+            return jsonify({'error': 'Contraseña mínima: 4 caracteres'}), 400
+        user.set_password(str(data['password']))
+    if 'role' in data and data['role'] in ('admin', 'doctor', 'recepcionista'):
+        user.role = data['role']
+        user.is_admin = (data['role'] == 'admin')
+    if 'full_name' in data:
+        user.full_name = (data.get('full_name') or '').strip()
+    if 'active' in data:
+        user.active = bool(data['active'])
+    db.session.commit()
+    return jsonify({'user': user.to_dict(), 'success': True})
+
+@app.route('/api/users/<int:uid>', methods=['DELETE'])
+@login_required
+@require_roles('admin')
+@audit_log('eliminar_usuario', 'usuario')
+def api_delete_user(uid):
+    if uid == current_user.id:
+        return jsonify({'error': 'No puedes eliminar tu propio usuario'}), 400
+    user = db.session.get(User, uid)
+    if not user:
+        return jsonify({'error': 'not found'}), 404
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/consents', methods=['GET'])
+@login_required
+def api_get_consents():
+    """Consentimientos de un paciente (requiere permiso clínico)."""
+    if current_role() not in ('admin', 'doctor'):
+        return jsonify({'error': 'Acceso denegado'}), 403
+    pid = request.args.get('patient_id', type=int)
+    if not pid:
+        return jsonify({'error': 'patient_id requerido'}), 400
+    consents = Consent.query.filter_by(patient_id=pid).order_by(Consent.signed_at.desc()).all()
+    return jsonify({'consents': [c.to_dict() for c in consents]})
+
+@app.route('/api/consents', methods=['POST'])
+@login_required
+@require_roles('admin', 'doctor')
+@audit_log('firmar_consentimiento', 'consentimiento')
+def api_create_consent():
+    data = request.get_json() or {}
+    pid = data.get('patient_id')
+    if not pid:
+        return jsonify({'error': 'patient_id requerido'}), 400
+    if not Patient.query.get(pid):
+        return jsonify({'error': 'paciente no existe'}), 404
+    consent_type = data.get('consent_type') or 'tratamiento'
+    title = (data.get('title') or '').strip()
+    body = (data.get('body') or '').strip()
+    signature_data = (data.get('signature_data') or '').strip()
+    if not signature_data:
+        return jsonify({'error': 'La firma del paciente es obligatoria'}), 400
+    consent = Consent(
+        patient_id=pid,
+        consent_type=consent_type,
+        title=title or 'Consentimiento informado',
+        body=body,
+        signature_data=signature_data[:500000],  # dataURL PNG puede ser grande
+        created_by=current_user.username,
+    )
+    db.session.add(consent)
+    db.session.commit()
+    return jsonify({'consent': consent.to_dict(), 'success': True}), 201
+
+@app.route('/api/consents/<int:cid>', methods=['DELETE'])
+@login_required
+@require_roles('admin')
+@audit_log('eliminar_consentimiento', 'consentimiento')
+def api_delete_consent(cid):
+    consent = db.session.get(Consent, cid)
+    if not consent:
+        return jsonify({'error': 'not found'}), 404
+    db.session.delete(consent)
     db.session.commit()
     return jsonify({'success': True})
 
