@@ -131,10 +131,22 @@
             </div>
         </div>
         <div class="flex items-center gap-4">
-            <button class="p-2 rounded-full transition-colors relative cursor-pointer" style="color:var(--on-variant);background:var(--surface-low)" title="Notificaciones">
+            <button onclick="toggleNotifications(event)" class="p-2 rounded-full transition-colors relative cursor-pointer" style="color:var(--on-variant);background:var(--surface-low)" title="Notificaciones">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 <span class="absolute top-1 right-1 w-2 h-2 rounded-full" style="background:var(--error)"></span>
             </button>
+            <div id="notif-panel" class="hidden absolute right-4 top-16 w-80 rounded-xl card-shadow border z-50 overflow-hidden" style="background:#fff;border-color:var(--outline-variant)">
+                <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color:var(--outline-variant);background:var(--surface)">
+                    <span class="text-sm font-bold" style="color:var(--on-surface)">Notificaciones</span>
+                    <span class="text-xs" style="color:var(--on-variant)" id="notif-count"></span>
+                </div>
+                <div class="max-h-80 overflow-y-auto" id="notif-list">
+                    <div class="p-4 text-center text-sm" style="color:var(--on-variant)">Cargando...</div>
+                </div>
+                <div class="px-4 py-2 border-t" style="border-color:var(--outline-variant)">
+                    <a href="/reportes" class="text-xs font-medium hover:underline" style="color:var(--primary)">Ver reporte completo</a>
+                </div>
+            </div>
             <button onclick="navigateTo('/citas')" class="hidden sm:flex rounded-lg py-2 px-4 text-white text-xs font-medium tracking-wide hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
                 Nueva Cita
             </button>
@@ -255,7 +267,9 @@
                 main.innerHTML = renderRecall(data ? data.recalls : []);
             } else if (path === '/reportes') {
                 var stats = await api('/api/stats');
-                main.innerHTML = renderReports(stats);
+                try { var fData = await api('/api/finance/overview'); } catch (e) { var fData = null; }
+                main.innerHTML = renderReports(stats, fData);
+                initReportsCharts(stats, fData);
             } else if (path === '/servicios') {
                 var data = await api('/api/services');
                 main.innerHTML = renderServices(data ? data.services : []);
@@ -446,6 +460,57 @@
     function fmtTime(iso) {
         if (!iso) return '—';
         return new Date(iso).toLocaleTimeString('es-DO', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // ============================================================
+    // NOTIFICATIONS — campana con acción (datos reales)
+    // ============================================================
+    var notifLoaded = false;
+    function toggleNotifications(ev) {
+        if (ev) ev.stopPropagation();
+        var panel = document.getElementById('notif-panel');
+        if (!panel) return;
+        if (panel.classList.contains('hidden')) {
+            panel.classList.remove('hidden');
+            if (!notifLoaded) loadNotifications();
+        } else {
+            panel.classList.add('hidden');
+        }
+    }
+    document.addEventListener('click', function (ev) {
+        var panel = document.getElementById('notif-panel');
+        if (panel && !panel.classList.contains('hidden') && !ev.target.closest('#notif-panel') && !ev.target.closest('button[title="Notificaciones"]')) {
+            panel.classList.add('hidden');
+        }
+    });
+    async function loadNotifications() {
+        var list = document.getElementById('notif-list');
+        var countEl = document.getElementById('notif-count');
+        if (!list) return;
+        try {
+            var s = await api('/api/stats');
+            var items = [];
+            if ((s.today_appointments || 0) > 0) items.push({ icon: '📅', text: (s.today_appointments) + ' cita(s) hoy programadas', sub: 'Revisa la agenda del día', link: '/citas' });
+            if ((s.recall_due || 0) > 0) items.push({ icon: '🔄', text: (s.recall_due) + ' paciente(s) en recall pendiente', sub: 'Requieren contacto de retorno', link: '/recall' });
+            if ((s.plans_pending || 0) > 0) items.push({ icon: '📋', text: (s.plans_pending) + ' plan(es) de tratamiento sin aceptar', sub: 'Seguimiento de presupuestos', link: '/tratamientos' });
+            if ((s.today_new || 0) > 0) items.push({ icon: '🆕', text: (s.today_new) + ' paciente(s) nuevo(s) hoy', sub: 'Captación del día', link: '/pacientes?hoy=true' });
+            if ((s.active_treatments || 0) > 0) items.push({ icon: '🦷', text: (s.active_treatments) + ' tratamiento(s) en progreso', sub: 'Ciclo de cuidado activo', link: '/tratamientos' });
+            if (items.length === 0) {
+                list.innerHTML = '<div class="p-6 text-center"><div class="text-2xl mb-1">✅</div><p class="text-sm" style="color:var(--on-variant)">Todo al día, sin pendientes</p></div>';
+                countEl.textContent = '0';
+            } else {
+                countEl.textContent = items.length + ' pendiente(s)';
+                list.innerHTML = items.map(function (it) {
+                    return '<a href="' + it.link + '" class="flex items-start gap-3 px-4 py-3 hover:bg-[#f5faff] transition-colors no-underline" style="color:inherit">' +
+                        '<div class="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0" style="background:var(--primary-tint)">' + it.icon + '</div>' +
+                        '<div class="min-w-0"><div class="text-sm font-medium" style="color:var(--on-surface)">' + it.text + '</div>' +
+                        '<div class="text-xs" style="color:var(--on-variant)">' + it.sub + '</div></div></a>';
+                }).join('');
+            }
+            notifLoaded = true;
+        } catch (e) {
+            list.innerHTML = '<div class="p-4 text-center text-sm" style="color:var(--error)">Error al cargar notificaciones</div>';
+        }
     }
 
     // ============================================================
@@ -845,17 +910,37 @@
     // ============================================================
     // REPORTS (simplified)
     // ============================================================
-    function renderReports(s) {
+    function renderReports(s, finance) {
         var bs = s.by_status || {};
         var total = s.total_patients || 0;
         var html = '<div class="fade-in">';
         html += '<div class="flex justify-between items-center mb-6">';
-        html += '<h2 class="text-2xl font-bold text-gray-900">Reportes</h2>';
-        html += '<button onclick="showReportPreview()" class="btn bg-dental-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-dental-600">Generar Reporte</button>';
+        html += '<div><h2 class="text-2xl font-bold" style="color:var(--on-surface)">Reportes</h2><p class="text-sm mt-1" style="color:var(--on-variant)">Estado del sistema y desempeño de la clínica</p></div>';
+        html += '<button onclick="showReportPreview()" class="px-4 py-2 rounded-lg text-white text-sm font-medium hover:opacity-90 transition-opacity" style="background:var(--primary)">Generar Reporte</button>';
+        html += '</div>';
+
+        // Charts row
+        html += '<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">';
+        html += '<div class="rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold" style="color:var(--on-surface)">Pacientes por Estado</h3><span class="text-xs" style="color:var(--on-variant)">' + total + ' pacientes</span></div>';
+        html += '<div style="height:240px"><canvas id="report-chart-estado"></canvas></div>';
+        html += '</div>';
+        html += '<div class="rounded-xl p-6 card-shadow border" style="background:#fff;border-color:var(--outline-variant)">';
+        html += '<div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold" style="color:var(--on-surface)">Ingresos por Servicio</h3><span class="text-xs" style="color:var(--on-variant)">RD$</span></div>';
+        html += '<div style="height:240px"><canvas id="report-chart-servicios"></canvas></div>';
+        html += '</div>';
         html += '</div>';
 
         html += '<div class="grid grid-cols-2 gap-4 mb-6">';
-        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Pacientes por Estado</h3><div class="space-y-2 text-sm">';
+        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Resumen</h3>' +
+            '<div class="space-y-2 text-sm">' +
+            '<p>Total pacientes: <strong>' + total + '</strong></p>' +
+            '<p>Nuevos hoy: <strong>' + s.today_new + '</strong></p>' +
+            '<p>Activos (tratamiento): <strong>' + (s.active_treatments || 0) + '</strong></p>' +
+            '<p>Recall pendiente: <strong>' + (s.recall_due || 0) + '</strong></p>' +
+            '<p>Ingresos del mes: <strong>$' + (s.month_revenue || 0).toLocaleString() + '</strong></p>' +
+            '</div></div>';
+        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Distribución</h3><div class="space-y-2 text-sm">';
         for (var i = 0; i < STATUS_KEYS.length; i++) {
             var k = STATUS_KEYS[i];
             var v = STATUS[k];
@@ -868,17 +953,51 @@
                 '<div class="h-full rounded-full" style="width:' + pct + '%;background:' + v.color + '"></div></div>' +
                 '<span class="text-sm font-medium w-6 text-right">' + count + '</span></div></div>';
         }
-        html += '</div></div>';
-
-        html += '<div class="card p-4"><h3 class="font-semibold text-gray-700 mb-3">Resumen</h3>' +
-            '<div class="space-y-2 text-sm">' +
-            '<p>Total pacientes: <strong>' + total + '</strong></p>' +
-            '<p>Nuevos hoy: <strong>' + s.today_new + '</strong></p>' +
-            '<p>Activos (tratamiento): <strong>' + (s.active_treatments || 0) + '</strong></p>' +
-            '<p>Recall pendiente: <strong>' + (s.recall_due || 0) + '</strong></p>' +
-            '<p>Ingresos del mes: <strong>$' + (s.month_revenue || 0).toLocaleString() + '</strong></p>' +
-            '</div></div></div></div>';
+        html += '</div></div></div></div>';
         return html;
+    }
+
+    function initReportsCharts(stats, finance) {
+        var estadoEl = document.getElementById('report-chart-estado');
+        var serviciosEl = document.getElementById('report-chart-servicios');
+        if (!estadoEl || !serviciosEl || typeof Chart === 'undefined') return;
+
+        // Donut — pacientes por estado
+        var bs = stats.by_status || {};
+        var estadoMap = {
+            nuevo: { label: 'Nuevo', color: '#1976d2' },
+            agendado: { label: 'Agendado', color: '#f59e0b' },
+            diagnosticado: { label: 'Diagnosticado', color: '#8b5cf6' },
+            plan_aceptado: { label: 'Plan Aceptado', color: '#0288d1' },
+            en_tratamiento: { label: 'En Tratamiento', color: '#f97316' },
+            completado: { label: 'Completado', color: '#2E7D32' },
+            retorno: { label: 'Retorno', color: '#06b6d4' },
+            perdido: { label: 'Perdido', color: '#94a3b8' }
+        };
+        var labels = [], data = [], colors = [];
+        for (var k in estadoMap) {
+            if ((bs[k] || 0) > 0) { labels.push(estadoMap[k].label); data.push(bs[k]); colors.push(estadoMap[k].color); }
+        }
+        if (labels.length === 0) { labels = ['Sin datos']; data = [1]; colors = ['#e2e8f0']; }
+        new Chart(estadoEl, {
+            type: 'doughnut',
+            data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, font: { size: 11 }, padding: 12 } } } }
+        });
+
+        // Barras horizontales — ingresos por servicio
+        var byService = (finance && finance.by_service) || [];
+        if (byService.length === 0) {
+            new Chart(serviciosEl, { type: 'bar', data: { labels: ['Sin datos'], datasets: [{ data: [0], backgroundColor: '#e2e8f0' }] }, options: { responsive: true, maintainAspectRatio: false } });
+            return;
+        }
+        var sLabels = byService.map(function (x) { return x.service.length > 24 ? x.service.slice(0, 22) + '…' : x.service; });
+        var sData = byService.map(function (x) { return x.income || 0; });
+        new Chart(serviciosEl, {
+            type: 'bar',
+            data: { labels: sLabels, datasets: [{ label: 'Ingresos (RD$)', data: sData, backgroundColor: 'rgba(25,118,210,0.75)', hoverBackgroundColor: '#1976d2', borderRadius: 6, borderSkipped: false }] },
+            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { font: { size: 10 }, callback: function (v) { return v >= 1000 ? (v / 1000) + 'k' : v; } } }, y: { ticks: { font: { size: 10 } } } } }
+        });
     }
 
     // ============================================================
@@ -1382,30 +1501,46 @@
     // DOCTORES
     // ============================================================
     function renderDoctors(doctors) {
+        window._doctors = doctors || [];
         var html = '<div class="fade-in">';
         html += '<div class="flex justify-between items-center mb-6">';
-        html += '<h2 class="text-2xl font-bold text-gray-900">🩺 Doctores</h2>';
-        html += '<button onclick="showDoctorModal()" class="px-4 py-2 bg-teal-600 text-white text-sm font-semibold rounded-full hover:bg-teal-700">+ Nuevo doctor</button>';
+        html += '<div><h2 class="text-2xl font-bold" style="color:var(--on-surface)">Equipo Médico</h2><p class="text-sm mt-1" style="color:var(--on-variant)">' + doctors.length + ' especialistas registrados</p></div>';
+        html += '<button onclick="showDoctorModal()" class="px-4 py-2 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2" style="background:var(--primary)"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nuevo doctor</button>';
         html += '</div>';
 
         if (doctors.length === 0) {
-            html += '<div class="text-center py-16 text-gray-400">No hay doctores registrados</div>';
+            html += '<div class="text-center py-16" style="color:var(--on-variant)">No hay doctores registrados</div>';
         } else {
-            html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+            var gradients = [
+                'linear-gradient(135deg,#1976d2,#0d47a1)',
+                'linear-gradient(135deg,#00897b,#004d40)',
+                'linear-gradient(135deg,#7b1fa2,#4a0072)',
+                'linear-gradient(135deg,#e65100,#bf360c)',
+                'linear-gradient(135deg,#0288d1,#01579b)',
+                'linear-gradient(135deg,#2E7D32,#1b5e20)'
+            ];
+            html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">';
             for (var i = 0; i < doctors.length; i++) {
                 var d = doctors[i];
                 var initials = d.name.split(" ").map(function(w){return w[0]}).join("").slice(0,2).toUpperCase();
-                html += '<div class="card p-5">';
-                html += '<div class="flex items-start gap-4">';
-                html += '<div class="w-12 h-12 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-lg shrink-0">' + initials + '</div>';
-                html += '<div class="flex-1">';
-                html += '<h3 class="font-bold text-gray-900">' + escHtml(d.name) + '</h3>';
-                html += '<p class="text-sm text-gray-500">' + escHtml(d.specialty) + '</p>';
-                if (d.bio) html += '<p class="text-xs text-gray-400 mt-1">' + escHtml(d.bio) + '</p>';
-                html += '<div class="flex items-center gap-2 mt-2">';
-                html += '<span class="text-xs px-2 py-0.5 rounded-full ' + (d.active ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500') + '">' + (d.active ? 'Activo' : 'Inactivo') + '</span>';
-                html += '<button onclick="deleteDoctor(' + d.id + ')" class="text-xs text-red-500 hover:text-red-700 ml-auto">🗑️</button>';
-                html += '</div></div></div></div>';
+                var grad = gradients[i % gradients.length];
+                html += '<div class="rounded-xl p-6 card-shadow border hover:shadow-lg transition-all duration-200" style="background:#fff;border-color:var(--outline-variant)">';
+                html += '<div class="flex flex-col items-center text-center mb-4">';
+                if (d.photo_url) {
+                    html += '<img src="' + d.photo_url + '" class="w-20 h-20 rounded-full object-cover border-4 mb-3" style="border-color:var(--primary-tint)" alt="' + escHtml(d.name) + '">';
+                } else {
+                    html += '<div class="w-20 h-20 rounded-full flex items-center justify-center text-white font-extrabold text-2xl mb-3 shadow-md" style="background:' + grad + '">' + initials + '</div>';
+                }
+                html += '<h3 class="font-bold text-base" style="color:var(--on-surface)">' + escHtml(d.name) + '</h3>';
+                html += '<span class="mt-1 px-3 py-1 rounded-full text-xs font-semibold" style="background:var(--primary-tint);color:var(--primary)">' + escHtml(d.specialty) + '</span>';
+                if (d.bio) html += '<p class="text-xs mt-2 leading-relaxed" style="color:var(--on-variant)">' + escHtml(d.bio) + '</p>';
+                html += '</div>';
+                html += '<div class="flex items-center justify-between pt-3 border-t" style="border-color:var(--outline-variant)">';
+                html += '<span class="text-xs px-2.5 py-1 rounded-full font-semibold ' + (d.active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500') + '" style="' + (d.active ? 'color:var(--success)' : '') + '">' + (d.active ? '● Activo' : '○ Inactivo') + '</span>';
+                html += '<div class="flex items-center gap-1">';
+                html += '<button onclick="showDoctorModal(' + d.id + ')" class="p-2 rounded-lg hover:bg-[#e6f6ff] transition-colors" style="color:var(--primary)" title="Editar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>';
+                html += '<button onclick="deleteDoctor(' + d.id + ')" class="p-2 rounded-lg hover:bg-[#ffebee] transition-colors" style="color:var(--error)" title="Eliminar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>';
+                html += '</div></div></div>';
             }
             html += '</div>';
         }
@@ -1414,7 +1549,7 @@
         // Modal
         html += '<div id="doctor-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50" style="display:none">';
         html += '<div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl">';
-        html += '<h3 class="text-lg font-bold mb-4">Nuevo Doctor</h3>';
+        html += '<h3 class="text-lg font-bold mb-4" id="doctor-modal-title">Nuevo Doctor</h3>';
         html += '<div class="space-y-3">';
         html += '<input id="doc-name" class="w-full border rounded-xl px-4 py-2 text-sm" placeholder="Nombre completo">';
         html += '<input id="doc-specialty" class="w-full border rounded-xl px-4 py-2 text-sm" placeholder="Especialidad">';
@@ -1428,8 +1563,29 @@
         return html;
     }
 
-    window.showDoctorModal = function() {
-        document.getElementById('doctor-modal').style.display = 'flex';
+    window.showDoctorModal = function(id) {
+        var modal = document.getElementById('doctor-modal');
+        document.getElementById('doc-name').value = '';
+        document.getElementById('doc-specialty').value = '';
+        document.getElementById('doc-bio').value = '';
+        var title = document.getElementById('doctor-modal-title');
+        var editing = null;
+        if (id && window._doctors) {
+            for (var i = 0; i < window._doctors.length; i++) {
+                if (window._doctors[i].id === id) { editing = window._doctors[i]; break; }
+            }
+        }
+        if (editing) {
+            document.getElementById('doc-name').value = editing.name || '';
+            document.getElementById('doc-specialty').value = editing.specialty || '';
+            document.getElementById('doc-bio').value = editing.bio || '';
+            if (title) title.textContent = 'Editar Doctor';
+            document.getElementById('doctor-modal').setAttribute('data-edit-id', id);
+        } else {
+            if (title) title.textContent = 'Nuevo Doctor';
+            document.getElementById('doctor-modal').removeAttribute('data-edit-id');
+        }
+        modal.style.display = 'flex';
     };
     window.closeDoctorModal = function() {
         document.getElementById('doctor-modal').style.display = 'none';
@@ -1437,11 +1593,17 @@
     window.saveDoctor = async function() {
         var name = document.getElementById('doc-name').value.trim();
         if (!name) { alert('El nombre es obligatorio'); return; }
-        await api('/api/doctors', { method: 'POST', body: JSON.stringify({
+        var payload = {
             name: name,
             specialty: document.getElementById('doc-specialty').value.trim(),
             bio: document.getElementById('doc-bio').value.trim(),
-        })});
+        };
+        var editId = document.getElementById('doctor-modal').getAttribute('data-edit-id');
+        if (editId) {
+            await api('/api/doctors/' + editId, { method: 'PUT', body: JSON.stringify(payload) });
+        } else {
+            await api('/api/doctors', { method: 'POST', body: JSON.stringify(payload) });
+        }
         closeDoctorModal();
         renderPage();
     };
