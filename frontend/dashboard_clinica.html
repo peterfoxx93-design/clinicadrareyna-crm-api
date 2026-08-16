@@ -36,7 +36,7 @@
         .card-shadow { box-shadow: 0px 4px 12px rgba(0,0,0,0.05); }
         /* Metric cards animadas — clickeables, blancas, se colorean al pasar el mouse encima */
         .metric-card { transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease, border-color 0.25s ease; cursor: pointer; display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid var(--outline-variant); }
-        .metric-card:hover { transform: translateY(-4px); box-shadow: 0 14px 30px rgba(25,118,210,0.18); background: #e6f6ff; border-color: #1976d2; }
+        .metric-card:hover { transform: translateY(-4px); box-shadow: 0 16px 34px rgba(25,118,210,0.28); background: linear-gradient(135deg, #dbe9ff, #c0dbff); border-color: #1976d2; }
         .metric-icon { transition: transform 0.25s ease; }
         .metric-card:hover .metric-icon { transform: scale(1.18) rotate(-6deg); }
         .stat-num { display: inline-block; }
@@ -89,7 +89,7 @@
                     <div class="text-xs" style="color:var(--on-variant)">Odontóloga</div>
                 </div>
             </div>
-            <button onclick="window.location='/citas'" class="w-full rounded-lg py-3 px-4 text-white text-xs font-medium tracking-wide flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
+            <button onclick="showNewApptModal()" class="w-full rounded-lg py-3 px-4 text-white text-xs font-medium tracking-wide flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 Agendar Cita
             </button>
@@ -153,7 +153,7 @@
                     <a href="/reportes" class="text-xs font-medium hover:underline" style="color:var(--primary)">Ver reporte completo</a>
                 </div>
             </div>
-            <button onclick="window.location='/citas'" class="hidden sm:flex rounded-lg py-2 px-4 text-white text-xs font-medium tracking-wide hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
+            <button onclick="showNewApptModal()" class="hidden sm:flex rounded-lg py-2 px-4 text-white text-xs font-medium tracking-wide hover:opacity-90 transition-opacity" style="background:var(--primary-container)">
                 Nueva Cita
             </button>
             <div class="w-8 h-8 rounded-full overflow-hidden border ml-1 cursor-pointer" style="border-color:var(--outline-variant)">
@@ -333,7 +333,7 @@
         html += '<a href="/pacientes" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
         html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Total Pacientes</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary-tint);color:var(--primary)"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>';
         html += '</div>';
         html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)"><span class="stat-num" data-target="' + (s.total_patients || 0) + '">0</span></div>';
         html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--success)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg><span>' + (s.today_new || 0) + ' nuevos hoy</span></div></div></a>';
@@ -342,7 +342,7 @@
         html += '<a href="/citas" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
         html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Citas Hoy</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary-tint);color:var(--primary)"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>';
         html += '</div>';
         html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)"><span class="stat-num" data-target="' + (s.today_appointments || 0) + '">0</span></div>';
         html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--on-variant)"><span>' + (s.upcoming_appointments || 0) + ' próximas agendadas</span></div></div></a>';
@@ -351,7 +351,7 @@
         html += '<a href="/finanzas" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
         html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Ingresos del Mes</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary-tint);color:var(--primary)"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--primary);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>';
         html += '</div>';
         html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)">$<span class="stat-num" data-target="' + (s.month_revenue || 0) + '">0</span></div>';
         html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--on-variant)"><span>' + (s.active_treatments || 0) + ' tratamientos activos</span></div></div></a>';
@@ -360,7 +360,7 @@
         html += '<a href="/recall" class="metric-card rounded-xl p-6 card-shadow flex flex-col justify-between">';
         html += '<div class="flex justify-between items-start mb-4">';
         html += '<span class="text-xs font-medium uppercase tracking-wider" style="color:var(--on-variant)">Recall Pendiente</span>';
-        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--error-container);color:var(--error)"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>';
+        html += '<div class="metric-icon w-8 h-8 rounded-full flex items-center justify-center" style="background:var(--error);color:#fff"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></div>';
         html += '</div>';
         html += '<div><div class="text-2xl font-semibold" style="color:var(--on-surface)"><span class="stat-num" data-target="' + (s.recall_due || 0) + '">0</span></div>';
         html += '<div class="flex items-center gap-1 mt-1 text-sm" style="color:var(--error)"><span>Requiere atención</span></div></div></a>';
@@ -873,6 +873,62 @@
         }
     }
 
+    // Modal "Nueva Cita" global (desde sidebar/topbar) — con selección de paciente
+    async function showNewApptModal() {
+        var data = await api('/api/patients');
+        var patients = (data && data.patients) || [];
+        var opts = '<option value="">— Seleccionar paciente —</option>';
+        for (var i = 0; i < patients.length; i++) {
+            var pname = patients[i].nombre || patients[i].name || ('Paciente #' + patients[i].id);
+            opts += '<option value="' + patients[i].id + '">' + escHtml(pname) + '</option>';
+        }
+        var html = '<div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onclick="if(event.target===this)this.remove()">' +
+            '<div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl fade-in">' +
+            '<h3 class="text-lg font-bold text-gray-900 mb-4">Nueva Cita</h3>' +
+            '<div class="space-y-3">' +
+            '<select id="na-patient" class="w-full border rounded-xl p-3 text-sm">' + opts + '</select>' +
+            '<input id="na-datetime" type="datetime-local" class="w-full border rounded-xl p-3 text-sm">' +
+            '<select id="na-type" class="w-full border rounded-xl p-3 text-sm">' +
+            '<option value="consulta">Consulta general</option><option value="primera_visita">Primera visita</option><option value="limpieza">Limpieza</option><option value="tratamiento">Tratamiento</option><option value="control">Control</option><option value="urgencia">Urgencia</option></select>' +
+            '<input id="na-duration" type="number" value="30" class="w-full border rounded-xl p-3 text-sm" placeholder="Duración (min)">' +
+            '<textarea id="na-notes" class="w-full border rounded-xl p-3 text-sm" placeholder="Notas (opcional)" rows="2"></textarea>' +
+            '</div>' +
+            '<div class="flex gap-2 mt-4">' +
+            '<button onclick="this.closest(&#39;.fixed&#39;).remove()" class="flex-1 btn border border-gray-300 rounded-xl p-3 text-sm">Cancelar</button>' +
+            '<button onclick="createAppointmentFromModal()" class="flex-1 btn text-white rounded-xl p-3 text-sm font-medium" style="background:var(--primary)">Guardar</button>' +
+            '</div></div></div>';
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        document.body.appendChild(div.firstElementChild);
+    }
+
+    async function createAppointmentFromModal() {
+        var pid = document.getElementById('na-patient').value;
+        var dt = document.getElementById('na-datetime').value;
+        var type = document.getElementById('na-type').value;
+        var dur = parseInt(document.getElementById('na-duration').value) || 30;
+        var notes = document.getElementById('na-notes').value.trim();
+        if (!pid) { alert('Selecciona un paciente'); return; }
+        if (!dt) { alert('Selecciona fecha y hora'); return; }
+        try {
+            var data = await api('/api/appointments', {
+                method: 'POST',
+                body: JSON.stringify({ patient_id: parseInt(pid), appt_datetime: dt + ':00', appt_type: type, duration_minutes: dur, notes: notes })
+            });
+            var modal = document.querySelector('.fixed');
+            if (modal) modal.remove();
+            alert('✅ Cita agendada correctamente');
+            if (window.location.pathname === '/citas') {
+                var d = await api('/api/appointments');
+                document.getElementById('main-content').innerHTML = renderAppointments(d ? d.appointments : []);
+            } else {
+                window.location = '/citas';
+            }
+        } catch (e) {
+            alert('Error: ' + (e.message || 'No se pudo agendar la cita'));
+        }
+    }
+
     // ============================================================
     // TREATMENTS
     // ============================================================
@@ -1330,6 +1386,23 @@
         var html = window._reportHTML || '';
         if (!html) { alert('Primero genera el reporte'); return; }
         html = html.replace(/src="\/static\/logo_clinica\.jpg"/g, 'src="' + window.location.origin + '/static/logo_clinica.jpg"');
+        // Reemplazar canvases dibujados por imágenes (un canvas vacío no imprime nada)
+        var chartIds = ['report-preview-chart-estado', 'report-preview-chart-daily'];
+        for (var i = 0; i < chartIds.length; i++) {
+            var c = document.getElementById(chartIds[i]);
+            if (c && typeof c.toDataURL === 'function') {
+                try {
+                    // Duplicar resolución para impresión nítida
+                    var tmp = document.createElement('canvas');
+                    tmp.width = (c.width || 800) * 2;
+                    tmp.height = (c.height || 220) * 2;
+                    var tctx = tmp.getContext('2d');
+                    tctx.drawImage(c, 0, 0, tmp.width, tmp.height);
+                    var imgTag = '<img src="' + tmp.toDataURL('image/png') + '" style="width:100%;height:auto;display:block;margin:0 auto;max-height:280px;object-fit:contain">';
+                    html = html.replace('<canvas id="' + chartIds[i] + '"></canvas>', imgTag);
+                } catch (e) { }
+            }
+        }
         var win = window.open('', '_blank');
         win.document.write('<html><head><title>Reporte Clínica Dental</title>');
         win.document.write('<style>body{font-family:Inter,sans-serif;padding:40px;color:#1f2937;max-width:800px;margin:0 auto}table{width:100%;border-collapse:collapse}th{background:#f9fafb;text-align:left;padding:10px 14px;border-bottom:2px solid #e5e7eb;color:#6b7280;font-size:11px;text-transform:uppercase}td{padding:10px 14px;border-bottom:1px solid #f3f4f6;font-size:13px}@media print{body{padding:20px}@page{margin:1.5cm}}</style></head><body>');
