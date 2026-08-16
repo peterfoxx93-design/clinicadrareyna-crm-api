@@ -74,6 +74,8 @@ class Patient(db.Model):
     interactions = db.relationship('PatientInteraction', backref='patient', lazy='dynamic',
                                    cascade='all, delete-orphan',
                                    order_by='PatientInteraction.created_at.desc()')
+    tooth_states = db.relationship('ToothState', backref='patient', lazy='dynamic',
+                                   cascade='all, delete-orphan')
 
     def to_dict(self):
         return {
@@ -90,6 +92,34 @@ class Patient(db.Model):
             'last_visit': self.last_visit.isoformat() if self.last_visit else None,
             'next_recall': self.next_recall.isoformat() if self.next_recall else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ToothState(db.Model):
+    """Estado de un diente en el odontograma digital (numeración FDI)."""
+    __tablename__ = 'tooth_states'
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer, db.ForeignKey('patients.id'), nullable=False)
+    tooth_number = db.Column(db.Integer, nullable=False)   # FDI: 11-48 (adulto), 51-85 (temporal)
+    status = db.Column(db.String(30), default='sano')      # sano, caries, obturado, endodoncia, corona, extraido, implante, puente, sellador, ausente
+    surfaces = db.Column(db.Text, default='{}')            # JSON: {"mesial":"caries","oclusal":"obturado",...}
+    notes = db.Column(db.Text, default='')
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        try:
+            import json
+            surf = json.loads(self.surfaces or '{}')
+        except Exception:
+            surf = {}
+        return {
+            'id': self.id,
+            'patient_id': self.patient_id,
+            'tooth_number': self.tooth_number,
+            'status': self.status,
+            'surfaces': surf,
+            'notes': self.notes or '',
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
 

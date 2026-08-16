@@ -15,7 +15,7 @@ import requests as http_req
 import resend
 
 sys.path.insert(0, os.path.dirname(__file__))
-from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, Service, Doctor, BlockedSchedule, init_db
+from models import db, User, Patient, Appointment, TreatmentPlan, PatientInteraction, Service, Doctor, BlockedSchedule, ToothState, init_db
 
 # Resend
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_8WZh1FS5_NNxkw7opeabxFV7QixMu97cH')
@@ -188,6 +188,11 @@ with app.app_context():
             db.session.commit()
         except:
             db.session.rollback()
+    try:
+        db.session.execute(db.text("ALTER TABLE patients ADD COLUMN odontogram_notes TEXT DEFAULT ''"))
+        db.session.commit()
+    except:
+        db.session.rollback()
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -646,6 +651,50 @@ def api_get_patient(pid):
     data['treatments'] = [t.to_dict() for t in patient.treatments.all()]
     data['interactions'] = [i.to_dict() for i in patient.interactions.all()]
     return jsonify(data)
+
+@app.route('/api/patients/<int:pid>/odontogram', methods=['GET'])
+@login_required
+def api_get_odontogram(pid):
+    patient = db.session.get(Patient, pid)
+    if not patient:
+        return jsonify({'error': 'not found'}), 404
+    teeth = [t.to_dict() for t in patient.tooth_states.order_by(ToothState.tooth_number).all()]
+    return jsonify({
+        'teeth': teeth,
+        'odontogram_notes': getattr(patient, 'odontogram_notes', '') or '',
+    })
+
+@app.route('/api/patients/<int:pid>/odontogram/teeth/<int:tooth_number>', methods=['PUT'])
+@login_required
+def api_put_odontogram_tooth(pid, tooth_number):
+    patient = db.session.get(Patient, pid)
+    if not patient:
+        return jsonify({'error': 'not found'}), 404
+    data = request.get_json() or {}
+    tooth = ToothState.query.filter_by(patient_id=pid, tooth_number=tooth_number).first()
+    if not tooth:
+        tooth = ToothState(patient_id=pid, tooth_number=tooth_number)
+        db.session.add(tooth)
+    if 'status' in data:
+        tooth.status = data['status']
+    if 'surfaces' in data and isinstance(data['surfaces'], dict):
+        tooth.surfaces = json.dumps(data['surfaces'])
+    if 'notes' in data:
+        tooth.notes = data.get('notes', '')
+    tooth.updated_at = datetime.utcnow()
+    db.session.commit()
+    return jsonify({'tooth': tooth.to_dict(), 'success': True})
+
+@app.route('/api/patients/<int:pid>/odontogram/notes', methods=['PUT'])
+@login_required
+def api_put_odontogram_notes(pid):
+    patient = db.session.get(Patient, pid)
+    if not patient:
+        return jsonify({'error': 'not found'}), 404
+    data = request.get_json() or {}
+    patient.odontogram_notes = data.get('notes', '')
+    db.session.commit()
+    return jsonify({'success': True, 'odontogram_notes': patient.odontogram_notes})
 
 @app.route('/api/patients/<int:pid>', methods=['PUT'])
 @login_required

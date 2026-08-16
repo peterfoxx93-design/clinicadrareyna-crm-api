@@ -63,6 +63,27 @@
         .patient-row:hover { transform: translateX(5px); background: #f0f7ff; }
         .card-hover { cursor: pointer; background: var(--card); border-radius: var(--radius-md); box-shadow: var(--shadow-1); border: 1px solid var(--border); transition: all 0.25s; display: block; text-decoration: none; color: inherit; animation: panelIn 0.55s cubic-bezier(0.22,1,0.36,1) both; }
         .card-hover:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--primary-soft); }
+        /* ===== Odontograma digital ===== */
+        .odonto-arc { margin-bottom: 14px; }
+        .odonto-arc-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--on-variant); margin-bottom: 6px; }
+        .odonto-row { display: flex; gap: 5px; justify-content: center; }
+        .odonto-mid { display: flex; align-items: center; justify-content: center; width: 26px; color: var(--outline); font-size: 10px; }
+        .odonto-tooth { width: 36px; height: 44px; border-radius: 9px; border: 1.5px solid var(--outline-variant); display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease; position: relative; background: #fff; }
+        .odonto-tooth:hover { transform: translateY(-4px) scale(1.08); box-shadow: 0 8px 18px rgba(0,0,0,0.20); z-index: 3; }
+        .odonto-tooth.surface-marked::after { content: ''; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: #fff; border: 1px solid rgba(0,0,0,0.25); }
+        .odonto-num { font-size: 9px; font-weight: 800; line-height: 1; margin-top: 3px; color: inherit; }
+        .odonto-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--outline-variant); }
+        .odonto-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500; color: var(--on-variant); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--outline-variant); background: #fff; }
+        .odonto-chip i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,0.18); flex-shrink: 0; }
+        /* Editor de diente (modal) */
+        .odonto-editor-tooth { width: 150px; height: 175px; border-radius: 16px; border: 2px solid var(--outline-variant); background: #fff; position: relative; margin: 0 auto 12px; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04); }
+        .odonto-surface { position: absolute; border: 1px solid rgba(0,0,0,0.10); cursor: pointer; transition: filter 0.15s ease, transform 0.15s ease; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: rgba(0,0,0,0.45); }
+        .odonto-surface:hover { filter: brightness(1.12); transform: scale(1.02); z-index: 2; }
+        .odonto-surface.active { box-shadow: inset 0 0 0 2px #1976d2; z-index: 3; }
+        .odonto-status-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+        .odonto-status-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 5px 10px; border-radius: 999px; border: 1.5px solid var(--outline-variant); background: #fff; cursor: pointer; transition: all .15s; }
+        .odonto-status-chip.sel { border-color: var(--primary); background: var(--primary-tint); color: var(--primary-dark); box-shadow: 0 2px 8px rgba(25,118,210,0.18); }
+        .odonto-status-chip i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; border: 1px solid rgba(0,0,0,0.15); }
         .btn { transition: all 0.15s; }
         .btn:active { transform: scale(0.97); }
         .fade-in { animation: fadeIn 0.3s ease-in; }
@@ -298,6 +319,7 @@
                 var id = path.split('/')[2];
                 var patient = await api('/api/patients/' + id);
                 main.innerHTML = renderPatientDetail(patient);
+                loadOdontograma(id, 'odontograma-' + id);
             } else if (path === '/citas') {
                 var data = await api('/api/appointments');
                 main.innerHTML = renderAppointments(data ? data.appointments : []);
@@ -713,6 +735,17 @@
         html += infoCard('Próximo recall', pt.next_recall ? fmtDate(pt.next_recall) : '-');
         html += '</div>';
 
+        // Odontograma digital
+        html += '<div class="card p-4 mb-6">';
+        html += '<div class="flex justify-between items-center mb-2">';
+        html += '<h3 class="font-semibold text-gray-700">🦷 Odontograma digital</h3>';
+        html += '<div class="flex items-center gap-2">';
+        html += '<button id="odonto-toggle" onclick="toggleOdontoSet()" class="text-xs px-3 py-1 rounded-full border font-medium" style="color:var(--primary);border-color:var(--primary-soft);background:#fff">' + (odontoSet === 'child' ? 'Cambiar a Adulto' : 'Cambiar a Niño') + '</button>';
+        html += '</div></div>';
+        html += '<p class="text-xs text-gray-400 mb-3">Haz clic en un diente para registrar su estado (caries, obturado, endodoncia, corona, extraído, implante…).</p>';
+        html += '<div id="odontograma-' + pt.id + '"><p class="text-gray-400 text-sm py-3">Cargando odontograma...</p></div>';
+        html += '</div>';
+
         // Status changer
         html += renderStatusChanger(pt);
 
@@ -896,6 +929,204 @@
     }
 
     // Modal "Nueva Cita" global (desde sidebar/topbar) — con selección de paciente
+    function toast(msg) {
+        var el = document.createElement('div');
+        el.textContent = msg;
+        el.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1e333c;color:#fff;padding:10px 20px;border-radius:999px;font-size:13px;font-weight:500;z-index:9999;box-shadow:0 8px 24px rgba(0,0,0,0.25);opacity:0;transition:opacity .25s';
+        document.body.appendChild(el);
+        requestAnimationFrame(function () { el.style.opacity = '1'; });
+        setTimeout(function () { el.style.opacity = '0'; setTimeout(function () { el.remove(); }, 300); }, 1800);
+    }
+
+    // ===== Odontograma digital =====
+    var TOOTH_STATUS = {
+        'sano':       { label: 'Sano',       c: '#ffffff', b: '#c1c6d4', t: '#071e27' },
+        'caries':     { label: 'Caries',     c: '#ef5350', b: '#c62828', t: '#ffffff' },
+        'obturado':   { label: 'Obturado',   c: '#64b5f6', b: '#1976d2', t: '#0d2f4d' },
+        'endodoncia': { label: 'Endodoncia', c: '#ab47bc', b: '#7b1fa2', t: '#ffffff' },
+        'corona':     { label: 'Corona',     c: '#ffca28', b: '#f9a825', t: '#4e342e' },
+        'extraido':   { label: 'Extraído',   c: '#455a64', b: '#263238', t: '#ffffff' },
+        'implante':   { label: 'Implante',   c: '#26a69a', b: '#00796b', t: '#ffffff' },
+        'puente':     { label: 'Puente',     c: '#8d6e63', b: '#5d4037', t: '#ffffff' },
+        'sellador':   { label: 'Sellador',   c: '#aed581', b: '#689f38', t: '#1b3a1b' },
+        'ausente':    { label: 'Ausente',    c: '#eceff1', b: '#b0bec5', t: '#90a4ae' }
+    };
+    var TOOTH_ORDER = ['sano', 'caries', 'obturado', 'endodoncia', 'corona', 'extraido', 'implante', 'puente', 'sellador', 'ausente'];
+    var SURFACE_LABELS = { 'oclusal': 'Oclusal', 'mesial': 'Mesial', 'distal': 'Distal', 'bucal': 'Bucal', 'lingual': 'Lingual' };
+    var ODONTO_ADULT = { top: [[18,17,16,15,14,13,12,11],[21,22,23,24,25,26,27,28]], bottom: [[38,37,36,35,34,33,32,31],[41,42,43,44,45,46,47,48]] };
+    var ODONTO_CHILD = { top: [[55,54,53,52,51],[61,62,63,64,65]], bottom: [[75,74,73,72,71],[81,82,83,84,85]] };
+    var odontoSet = 'adult';
+    var odontoData = null;
+    var odontoEditStatus = 'caries';
+
+    function odontoArcs(set) { return set === 'child' ? ODONTO_CHILD : ODONTO_ADULT; }
+
+    function odontoToothHTML(num, state) {
+        var st = TOOTH_STATUS[(state && state.status) || 'sano'] || TOOTH_STATUS['sano'];
+        var surf = (state && state.surfaces) || {};
+        var hasSurf = false;
+        for (var k in surf) { if (surf[k] && surf[k] !== 'sano') { hasSurf = true; break; } }
+        return '<div class="odonto-tooth' + (hasSurf ? ' surface-marked' : '') + '" style="background:' + st.c + ';border-color:' + st.b + ';color:' + st.t + '" onclick="openToothEditor(' + odontoData.patientId + ',' + num + ')" title="Diente ' + num + ': ' + st.label + '"><span class="odonto-num">' + num + '</span></div>';
+    }
+
+    function odontoArcHTML(rows) {
+        var html = '';
+        for (var r = 0; r < rows.length; r++) {
+            var row = rows[r];
+            var left = row[0], right = row[1];
+            html += '<div class="odonto-row">';
+            for (var i = 0; i < left.length; i++) html += odontoToothHTML(left[i], odontoData.teethMap[left[i]]);
+            html += '<div class="odonto-mid">∣</div>';
+            for (var j = 0; j < right.length; j++) html += odontoToothHTML(right[j], odontoData.teethMap[right[j]]);
+            html += '</div>';
+        }
+        return html;
+    }
+
+    function odontoLegendHTML() {
+        var html = '';
+        for (var i = 0; i < TOOTH_ORDER.length; i++) {
+            var s = TOOTH_STATUS[TOOTH_ORDER[i]];
+            html += '<span class="odonto-chip"><i style="background:' + s.c + ';border-color:' + s.b + '"></i>' + s.label + '</span>';
+        }
+        return html;
+    }
+
+    function renderOdontoHTML() {
+        var arcs = odontoArcs(odontoSet);
+        return '<div class="odonto-arc"><div class="odonto-arc-title">Maxilar superior</div>' + odontoArcHTML(arcs.top) + '</div>' +
+            '<div class="odonto-arc"><div class="odonto-arc-title">Mandíbula</div>' + odontoArcHTML(arcs.bottom) + '</div>' +
+            '<div class="odonto-legend">' + odontoLegendHTML() + '</div>' +
+            '<textarea id="odonto-notes-area" rows="2" class="w-full border rounded-xl p-3 text-sm mt-3" placeholder="Notas generales del odontograma (ej. prótesis planificada, referencias clínicas…)"></textarea>' +
+            '<div class="flex justify-end mt-2"><button onclick="saveOdontoNotes()" class="text-xs px-4 py-2 rounded-full font-medium border" style="color:var(--primary);border-color:var(--primary-soft)">Guardar notas</button></div>';
+    }
+
+    async function loadOdontograma(patientId, containerId) {
+        var root = document.getElementById(containerId);
+        if (!root) return;
+        try {
+            var data = await api('/api/patients/' + patientId + '/odontogram');
+            var teethMap = {};
+            for (var i = 0; i < (data.teeth || []).length; i++) {
+                teethMap[data.teeth[i].tooth_number] = data.teeth[i];
+            }
+            odontoData = { patientId: patientId, teethMap: teethMap, notes: data.odontogram_notes || '' };
+            root.innerHTML = renderOdontoHTML();
+            var notesBox = document.getElementById('odonto-notes-area');
+            if (notesBox) notesBox.value = odontoData.notes;
+            var btn = document.getElementById('odonto-toggle');
+            if (btn) btn.textContent = odontoSet === 'child' ? 'Cambiar a Adulto' : 'Cambiar a Niño';
+        } catch (e) {
+            root.innerHTML = '<p class="text-gray-400 text-sm py-3">No se pudo cargar el odontograma</p>';
+        }
+    }
+
+    function toggleOdontoSet() {
+        odontoSet = odontoSet === 'adult' ? 'child' : 'adult';
+        if (odontoData) {
+            var root = document.getElementById('odontograma-' + odontoData.patientId);
+            if (root) root.innerHTML = renderOdontoHTML();
+        }
+        var btn = document.getElementById('odonto-toggle');
+        if (btn) btn.textContent = odontoSet === 'child' ? 'Cambiar a Adulto' : 'Cambiar a Niño';
+    }
+
+    async function saveOdontoNotes() {
+        if (!odontoData) return;
+        var notes = document.getElementById('odonto-notes-area');
+        if (!notes) return;
+        try {
+            await api('/api/patients/' + odontoData.patientId + '/odontogram/notes', { method: 'PUT', body: JSON.stringify({ notes: notes.value }) });
+            odontoData.notes = notes.value;
+            toast('Notas guardadas');
+        } catch (e) { alert('Error al guardar notas'); }
+    }
+
+    function openToothEditor(patientId, num) {
+        var state = odontoData.teethMap[num] || { status: 'sano', surfaces: {}, notes: '' };
+        odontoEditStatus = (state.status && state.status !== 'sano') ? state.status : 'caries';
+        var chips = '';
+        for (var i = 0; i < TOOTH_ORDER.length; i++) {
+            var s = TOOTH_STATUS[TOOTH_ORDER[i]];
+            chips += '<span class="odonto-status-chip' + (TOOTH_ORDER[i] === odontoEditStatus ? ' sel' : '') + '" onclick="setOdontoEditStatus(\'' + TOOTH_ORDER[i] + '\', this)" data-st="' + TOOTH_ORDER[i] + '"><i style="background:' + s.c + ';border-color:' + s.b + '"></i>' + s.label + '</span>';
+        }
+        var html = '<div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onclick="if(event.target===this)this.remove()">' +
+            '<div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl fade-in">' +
+            '<div class="flex justify-between items-center mb-1"><h3 class="text-lg font-bold text-gray-900">Diente ' + num + '</h3><span class="text-xs text-gray-400">Numeración FDI</span></div>' +
+            '<p class="text-xs text-gray-500 mb-3">1. Elige un estado → 2. Haz clic en una superficie para marcarla (o usa Extraído/Implante/Corona para todo el diente).</p>' +
+            '<div id="odonto-editor-tooth" class="odonto-editor-tooth">' + odontoSurfacesHTML(state) + '</div>' +
+            '<div class="odonto-status-chips mb-3">' + chips + '</div>' +
+            '<label class="text-xs text-gray-500 font-medium block mb-1">Notas del diente</label>' +
+            '<textarea id="odonto-tooth-notes" rows="2" class="w-full border rounded-xl p-3 text-sm mb-4" placeholder="Ej. caries profunda, pendiente de endodoncia">' + (state.notes || '') + '</textarea>' +
+            '<div class="flex gap-2">' +
+            '<button onclick="this.closest(\'.fixed\').remove()" class="flex-1 btn border border-gray-300 rounded-xl p-3 text-sm">Cancelar</button>' +
+            '<button onclick="saveToothState(' + num + ', this)" class="flex-1 btn text-white rounded-xl p-3 text-sm font-medium" style="background:var(--primary)">Guardar diente</button>' +
+            '</div></div></div>';
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        document.body.appendChild(div.firstElementChild);
+    }
+
+    function odontoSurfacesHTML(state) {
+        var surf = state.surfaces || {};
+        var zones = {
+            oclusal: { top: '0', left: '0', width: '100%', height: '32%' },
+            mesial: { top: '32%', left: '0', width: '30%', height: '36%' },
+            bucal: { top: '32%', left: '30%', width: '40%', height: '36%' },
+            distal: { top: '32%', left: '70%', width: '30%', height: '36%' },
+            lingual: { top: '68%', left: '0', width: '100%', height: '32%' }
+        };
+        var html = '';
+        for (var k in zones) {
+            var z = zones[k];
+            var st = surf[k] || 'sano';
+            var col = TOOTH_STATUS[st] || TOOTH_STATUS['sano'];
+            html += '<div class="odonto-surface' + (st !== 'sano' ? ' active' : '') + '" data-surf="' + k + '" style="top:' + z.top + ';left:' + z.left + ';width:' + z.width + ';height:' + z.height + ';background:' + col.c + ';border-color:' + col.b + ';color:' + col.t + '" onclick="paintOdontoSurface(\'' + k + '\', this)">' + SURFACE_LABELS[k] + '</div>';
+        }
+        return html;
+    }
+
+    function setOdontoEditStatus(st, el) {
+        odontoEditStatus = st;
+        var chips = document.querySelectorAll('.odonto-status-chip');
+        for (var i = 0; i < chips.length; i++) chips[i].classList.remove('sel');
+        if (el) el.classList.add('sel');
+    }
+
+    function paintOdontoSurface(surf, el) {
+        var st = TOOTH_STATUS[odontoEditStatus] || TOOTH_STATUS['sano'];
+        el.style.background = st.c;
+        el.style.borderColor = st.b;
+        el.style.color = st.t;
+        el.classList.add('active');
+        el.dataset.current = odontoEditStatus;
+    }
+
+    async function saveToothState(num, btnEl) {
+        if (!odontoData) return;
+        var toothEl = document.getElementById('odonto-editor-tooth');
+        var surfaces = {};
+        var sEls = toothEl.querySelectorAll('.odonto-surface');
+        for (var i = 0; i < sEls.length; i++) {
+            var st = sEls[i].dataset.current || 'sano';
+            if (st && st !== 'sano') surfaces[sEls[i].dataset.surf] = st;
+        }
+        var notes = (document.getElementById('odonto-tooth-notes') || {}).value || '';
+        var global = Object.keys(surfaces).length ? 'sano' : odontoEditStatus;
+        if (odontoEditStatus === 'extraido' || odontoEditStatus === 'ausente' || odontoEditStatus === 'implante' || odontoEditStatus === 'corona' || odontoEditStatus === 'puente') global = odontoEditStatus;
+        try {
+            await api('/api/patients/' + odontoData.patientId + '/odontogram/teeth/' + num, {
+                method: 'PUT',
+                body: JSON.stringify({ status: global, surfaces: surfaces, notes: notes })
+            });
+            odontoData.teethMap[num] = { status: global, surfaces: surfaces, notes: notes };
+            var root = document.getElementById('odontograma-' + odontoData.patientId);
+            if (root) root.innerHTML = renderOdontoHTML();
+            if (btnEl) btnEl.closest('.fixed').remove();
+            toast('Diente ' + num + ' actualizado');
+        } catch (e) { alert('Error al guardar'); }
+    }
+
     async function showNewApptModal() {
         var data = await api('/api/patients');
         var patients = (data && data.patients) || [];
