@@ -147,6 +147,32 @@ CORS(app, origins=CORS_ORIGINS.split(','), supports_credentials=True)
 
 init_db(app)
 
+# Migración de seed: si Postgres está vacío y existe migrate_seed.sql (datos del piloto local)
+def run_seed_if_empty():
+    if not database_url.startswith('postgresql://'):
+        return
+    seed_path = os.path.join(BASE, 'migrate_seed.sql')
+    if not os.path.exists(seed_path):
+        return
+    with app.app_context():
+        try:
+            cnt = db.session.execute(db.text('SELECT count(*) FROM patients')).scalar()
+            if cnt and cnt > 0:
+                return
+            with open(seed_path, encoding='utf-8') as f:
+                content = f.read()
+            for stmt in content.split(';'):
+                s = stmt.strip()
+                if s and not s.startswith('--'):
+                    db.session.execute(db.text(s))
+            db.session.commit()
+            print('[Seed] Migración de datos del piloto completada')
+        except Exception as e:
+            db.session.rollback()
+            print(f'[Seed] Error de migración (no bloqueante): {e}')
+
+run_seed_if_empty()
+
 with app.app_context():
     for col in ['ai_response', 'channel_id', 'source_phone']:
         try:
