@@ -1865,6 +1865,9 @@
             '</div>';
     }
 
+    // Alias: al entrar a la página se dispara la detección automáticamente
+    window.loadNoShow = function() { runNoShowDetection(); };
+
     window.runNoShowDetection = async function() {
         var btn = document.querySelector('#no-show-result');
         if (btn) btn.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Detectando...</p>';

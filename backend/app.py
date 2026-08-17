@@ -990,6 +990,14 @@ def api_create_treatment():
         status=data.get('status', 'presentado'),
         notes=data.get('notes', ''),
     )
+    # created_at retroactivo opcional (registro de planes presentados en días anteriores)
+    created_raw = data.get('created_at')
+    if created_raw:
+        try:
+            s = str(created_raw)
+            plan.created_at = datetime.fromisoformat(s.replace('Z', '+00:00')).replace(tzinfo=None) if 'T' in s else datetime.strptime(s, '%Y-%m-%d')
+        except Exception:
+            pass  # formato inválido → usa now
     db.session.add(plan)
 
     # Update patient status
