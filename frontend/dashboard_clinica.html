@@ -196,7 +196,7 @@
             <div class="text-lg font-semibold md:hidden" style="color:var(--primary)">Centro Odontológico</div>
             <div class="hidden md:flex relative w-96">
                 <svg class="absolute left-3 top-1/2 -translate-y-1/2" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--outline)"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input id="global-search" class="w-full h-10 pl-10 pr-4 rounded-lg border text-sm outline-none transition-colors" style="border-color:var(--outline-variant);background:#fff;color:var(--on-surface)" placeholder="Buscar pacientes, citas..." onkeydown="if(event.key==='Enter'){var q=this.value.trim();if(q)window.location='/pacientes?q='+encodeURIComponent(q);}">
+                <input id="global-search" class="w-full h-10 pl-10 pr-4 rounded-lg border text-sm outline-none transition-colors" style="border-color:var(--outline-variant);background:#fff;color:var(--on-surface)" placeholder="Buscar pacientes, citas..." onkeydown="if(event.key==='Enter'){var q=this.value.trim();if(q){var p=window.location.pathname;if(p==='/citas'){window.location='/citas?q='+encodeURIComponent(q);}else{window.location='/pacientes?q='+encodeURIComponent(q);}}}">
             </div>
         </div>
         <div class="flex items-center gap-4">
@@ -335,7 +335,8 @@
                 var search = window.location.search;
                 var data = await api('/api/patients' + search);
                 var statusFilter = search.indexOf('status=') >= 0 ? search.replace('?status=', '') : null;
-                main.innerHTML = renderPatients(data ? data.patients : [], statusFilter);
+                var pq = (search.match(/[?&]q=([^&]*)/) || [])[1] || '';
+                main.innerHTML = renderPatients(data ? data.patients : [], statusFilter, pq);
             } else if (path.indexOf('/paciente/') === 0) {
                 var id = path.split('/')[2];
                 var patient = await api('/api/patients/' + id);
@@ -343,8 +344,9 @@
                 loadOdontograma(id, 'odontograma-' + id);
                 loadConsents(id, 'consents-' + id);
             } else if (path === '/citas') {
-                var data = await api('/api/appointments');
-                main.innerHTML = renderAppointments(data ? data.appointments : []);
+                var cq = (window.location.search.match(/[?&]q=([^&]*)/) || [])[1] || '';
+                var cdata = await api('/api/appointments' + (cq ? '?q=' + encodeURIComponent(cq) : ''));
+                main.innerHTML = renderAppointments(cdata ? cdata.appointments : [], cq);
             } else if (path === '/tratamientos') {
                 var data = await api('/api/treatments');
                 main.innerHTML = renderTreatments(data ? data.treatments : []);
@@ -672,13 +674,18 @@
     // ============================================================
     // PATIENTS LIST (continuará)
     // ============================================================
-    function renderPatients(patients, filter) {
+    function renderPatients(patients, filter, pq) {
+        pq = pq || '';
         var title = filter ? 'Pacientes — ' + (STATUS[filter] || {}).emoji + ' ' + (STATUS[filter] || {}).label : 'Pacientes';
         var html = '<div class="fade-in">';
-        html += '<div class="flex justify-between items-center mb-6">';
+        html += '<div class="flex flex-wrap justify-between items-center gap-3 mb-6">';
         html += '<h2 class="text-2xl font-bold text-gray-900">' + title + '</h2>';
+        html += '<div class="flex items-center gap-2">';
+        html += '<input id="pat-search" class="h-10 pl-4 pr-4 rounded-lg border text-sm outline-none transition-colors" style="border-color:var(--outline-variant);background:#fff;color:var(--on-surface);width:220px" placeholder="Buscar paciente..." value="' + escHtml(pq) + '" onkeydown="if(event.key===\'Enter\'){var q=this.value.trim();window.location=\'/pacientes?q=\'+encodeURIComponent(q);}">';
+        if (pq) html += '<button onclick="window.location=\'/pacientes\'" class="text-xs px-3 py-2 rounded-full border font-medium" style="color:var(--on-variant);border-color:var(--outline-variant)">✕ Limpiar</button>';
         html += '<button onclick="showNewPatientForm()" class="btn bg-dental-500 text-white px-4 py-2 rounded-xl font-medium hover:bg-dental-600">+ Nuevo Paciente</button>';
-        html += '</div>';
+        html += '</div></div>';
+        if (pq) html += '<p class="text-sm text-gray-500 mb-3">Resultados para "<span style="color:var(--primary)">' + escHtml(pq) + '</span>" (' + patients.length + ')</p>';
         html += '<div class="card overflow-hidden"><table class="w-full text-sm">';
         html += '<thead><tr class="bg-gray-50 text-left text-gray-500 text-xs uppercase tracking-wider">';
         html += '<th class="p-4">Nombre / Motivo</th><th class="p-4">Contacto</th><th class="p-4">Estado</th><th class="p-4">Fuente</th><th class="p-4">Creado</th><th class="p-4"></th>';
@@ -913,11 +920,17 @@
     // ============================================================
     // APPOINTMENTS
     // ============================================================
-    function renderAppointments(appointments) {
+    function renderAppointments(appointments, cq) {
+        cq = cq || '';
         var html = '<div class="fade-in">';
-        html += '<h2 class="text-2xl font-bold text-gray-900 mb-6">Citas</h2>';
+        html += '<div class="flex flex-wrap items-center justify-between gap-3 mb-6">';
+        html += '<h2 class="text-2xl font-bold text-gray-900">Citas</h2>';
+        html += '<div class="flex items-center gap-2">';
+        html += '<input id="appt-search" class="h-10 pl-4 pr-4 rounded-lg border text-sm outline-none transition-colors" style="border-color:var(--outline-variant);background:#fff;color:var(--on-surface);width:220px" placeholder="Buscar por paciente..." value="' + escHtml(cq) + '" onkeydown="if(event.key===\'Enter\'){var q=this.value.trim();window.location=\'/citas' + ('' ? '' : '') + '?q=\'+encodeURIComponent(q);}">';
+        if (cq) html += '<button onclick="window.location=\'/citas\'" class="text-xs px-3 py-2 rounded-full border font-medium" style="color:var(--on-variant);border-color:var(--outline-variant)">✕ Limpiar</button>';
+        html += '</div></div>';
         html += '<div class="card p-6">';
-        html += '<h3 class="font-semibold text-gray-700 mb-4">Próximas citas</h3>';
+        html += '<h3 class="font-semibold text-gray-700 mb-4">' + (cq ? 'Resultados para "<span style="color:var(--primary)">' + escHtml(cq) + '</span>" (' + appointments.length + ')' : 'Próximas citas') + '</h3>';
         html += '<div class="space-y-3">';
         if (appointments.length > 0) {
             for (var i = 0; i < appointments.length; i++) {
@@ -933,7 +946,7 @@
                 html += '<span class="text-xs font-medium ' + stColor + '">' + a.status + '</span></div>';
             }
         } else {
-            html += '<p class="text-gray-400 text-center py-8">No hay citas agendadas</p>';
+            html += '<p class="text-gray-400 text-center py-8">' + (cq ? 'Sin citas para "' + escHtml(cq) + '"' : 'No hay citas agendadas') + '</p>';
         }
         html += '</div></div></div>';
         return html;

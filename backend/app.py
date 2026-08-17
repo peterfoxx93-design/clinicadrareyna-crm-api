@@ -676,7 +676,8 @@ def api_get_stats():
 @login_required
 def api_get_patients():
     status_filter = request.args.get('status')
-    search = request.args.get('search', '').strip()
+    # El buscador global usa ?q= ; la API interna usa ?search= — aceptar ambos
+    search = (request.args.get('search') or request.args.get('q') or '').strip()
     recall = request.args.get('recall', '').lower() == 'true'
 
     query = Patient.query
@@ -828,8 +829,14 @@ def api_get_appointments():
     date_from = request.args.get('from')
     date_to = request.args.get('to')
     today = request.args.get('today', '').lower() == 'true'
+    q = (request.args.get('q') or '').strip()
 
     query = Appointment.query
+    if q:
+        like = f'%{q}%'
+        query = query.join(Patient).filter(
+            db.or_(Patient.name.ilike(like), Patient.phone.ilike(like))
+        )
     if today:
         today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
         query = query.filter(
