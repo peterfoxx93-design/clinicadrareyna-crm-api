@@ -1874,21 +1874,17 @@
         try {
             var data = await api('/api/automations/no-shows', { method: 'POST' });
             var marked = data.marked || [];
+            var recent = data.recent || [];
             var el = document.getElementById('ns-count');
             if (el) el.textContent = data.marked_count || 0;
             var pe = document.getElementById('ns-pending');
             if (pe) pe.textContent = data.pending_future || 0;
             var box = document.getElementById('no-show-result');
             if (!box) return;
-            if (marked.length === 0) {
-                box.innerHTML = '<div class="text-center py-6"><div class="text-3xl mb-2">🎉</div><p class="text-gray-600 text-sm">Sin no-shows pendientes de detectar. Todo al día.</p></div>';
-                return;
-            }
-            var html = '<h3 class="font-bold text-gray-800 mb-3">Citas marcadas como no-show</h3><div class="space-y-2">';
-            for (var i = 0; i < marked.length; i++) {
-                var a = marked[i];
+
+            function rowHtml(a) {
                 var msg = 'Hola ' + (a.patient_name || '') + ', soy del consultorio de la Dra. Reyna Pimentel. Vimos que no pudiste asistir a tu cita del ' + (a.appt_datetime ? fmtDateTime(a.appt_datetime) : '') + '. ¿Te gustaría reagendarla? Tenemos disponibilidad esta semana. 😊';
-                html += '<div class="flex items-center justify-between p-3 bg-red-50 rounded-xl">' +
+                return '<div class="flex items-center justify-between p-3 bg-red-50 rounded-xl">' +
                     '<div><div class="font-medium text-sm">' + escHtml(a.patient_name || 'Paciente') + '</div>' +
                     '<div class="text-xs text-gray-500">' + (a.appt_datetime ? fmtDateTime(a.appt_datetime) : '') + ' · ' + escHtml(a.appt_type || 'consulta') + '</div></div>' +
                     '<div class="flex items-center gap-2">' +
@@ -1896,9 +1892,23 @@
                     '<button onclick="showNewApptForm(' + a.patient_id + ')" class="text-xs px-3 py-1.5 rounded-full border font-medium" style="color:var(--primary);border-color:var(--primary)">Reagendar</button>' +
                     '</div></div>';
             }
-            html += '</div>';
+
+            var html = '';
+            if (marked.length > 0) {
+                html += '<h3 class="font-bold text-gray-800 mb-2">🔍 Recién detectadas como no-show</h3><div class="space-y-2 mb-4">';
+                for (var i = 0; i < marked.length; i++) html += rowHtml(marked[i]);
+                html += '</div>';
+            }
+            if (recent.length > 0) {
+                html += '<h3 class="font-bold text-gray-800 mb-2">📋 Historial de no-shows</h3><div class="space-y-2">';
+                for (var j = 0; j < recent.length; j++) html += rowHtml(recent[j]);
+                html += '</div>';
+            }
+            if (!html) {
+                html = '<div class="text-center py-6"><div class="text-3xl mb-2">🎉</div><p class="text-gray-600 text-sm">Sin no-shows registrados. Todo al día.</p></div>';
+            }
             box.innerHTML = html;
-            toast('🔍 ' + marked.length + ' no-show(s) detectado(s)');
+            if (marked.length > 0) toast('🔍 ' + marked.length + ' no-show(s) detectado(s)');
         } catch (e) {
             var box = document.getElementById('no-show-result');
             if (box) box.innerHTML = '<p class="text-red-500 text-sm">Error: ' + e.message + '</p>';

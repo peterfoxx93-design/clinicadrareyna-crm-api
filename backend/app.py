@@ -1567,6 +1567,11 @@ def api_detect_no_shows():
         db.session.commit()
         write_audit('no_show_detectado', 'cita', None, f'{len(marked)} citas marcadas como no-show')
 
+    # Historial de no-shows recientes (para que la página siempre muestre la lista con acciones)
+    recent = Appointment.query.filter(
+        Appointment.status == 'no_show'
+    ).order_by(Appointment.appt_datetime.desc()).limit(15).all()
+
     # Cuántas quedan por pasar (sin marcar, futuras)
     pending_future = Appointment.query.filter(
         Appointment.appt_datetime >= cutoff,
@@ -1577,6 +1582,8 @@ def api_detect_no_shows():
         'success': True,
         'marked': marked,
         'marked_count': len(marked),
+        'recent': [a.to_dict() for a in recent],
+        'recent_count': len(recent),
         'pending_future': pending_future,
         'grace_minutes': grace_minutes,
     })
